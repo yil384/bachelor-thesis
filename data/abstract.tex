@@ -3,37 +3,30 @@
 % 中英文摘要和关键字
 
 \begin{abstract}
-  论文的摘要是对论文研究内容和成果的高度概括。
-  摘要应对论文所研究的问题及其研究目的进行描述，对研究方法和过程进行简单介绍，对研究成果和所得结论进行概括。
-  摘要应具有独立性和自明性，其内容应包含与论文全文同等量的主要信息。
-  使读者即使不阅读全文，通过摘要就能了解论文的总体内容和主要成果。
+  随着互联网技术的迅猛发展，网络协议栈在现代操作系统中扮演着越来越重要的角色。轻量级协议栈如 lwIP 和 smoltcp 已在嵌入式系统、物联网设备和资源受限环境中广泛应用。本论文研究并实现了在 ArceOS 操作系统基础上，兼容多架构的网络协议栈接口模块，以支持 lwIP 和 smoltcp 协议栈的集成。通过系统调用接口的设计和实现，提供了统一的网络操作接口，使得操作系统能够灵活切换不同的协议栈，从而满足不同应用场景的需求。
 
-  论文摘要的书写应力求精确、简明。
-  切忌写成对论文书写内容进行提要的形式，尤其要避免“第 1 章……；第 2 章……；……”这种或类似的陈述方式。
+  论文首先分析了 ArceOS 操作系统的设计架构，重点解决了网络协议栈与内存管理、系统调用接口的兼容性问题。基于 Rust 语言的安全性和高性能特性，本文设计了可扩展的网络系统调用接口，并实现了多种网络协议栈的并行支持。通过引入条件编译和特性标志，系统能够根据需求选择集成 lwIP 或 smoltcp 协议栈。为确保协议栈在多核环境中的线程安全，采用了互斥锁和其他同步机制。
 
-  关键词是为了文献标引工作、用以表示全文主要内容信息的单词或术语。
-  关键词不超过 5 个，每个关键词中间用分号分隔。
+  在实现过程中，本论文设计并实现了与 Starry-Next 操作系统架构兼容的网络协议栈接口，通过四种架构实现了常见的网络系统调用，如 SOCKET、BIND、CONNECT、SENDTO、RECVFROM 等，支持多种网络协议栈的动态切换和无缝集成。实验结果表明，该设计能够显著提升网络通信的灵活性、可扩展性和性能，特别是在资源受限的嵌入式设备和高并发网络环境中。
+
+  通过在 QEMU 虚拟平台上进行功能和性能测试，本论文验证了所提出的网络协议栈接口设计的可行性。实验结果表明，该设计不仅能够提高操作系统的网络管理能力，还能提供更高效的网络协议栈支持，满足多样化应用的需求。
 
   % 关键词用“英文逗号”分隔，输出时会自动处理为正确的分隔符
   \thusetup{
-    keywords = {关键词 1, 关键词 2, 关键词 3, 关键词 4, 关键词 5},
+    keywords = {组件化操作系统, 宏内核, ArceOS, starry-next, 系统调用, 轻量级协议栈, lwIP, smoltcp, 内存安全, 并发处理},
   }
 \end{abstract}
 
 \begin{abstract*}
-  An abstract of a dissertation is a summary and extraction of research work and contributions.
-  Included in an abstract should be description of research topic and research objective, brief introduction to methodology and research process, and summary of conclusion and contributions of the research.
-  An abstract should be characterized by independence and clarity and carry identical information with the dissertation.
-  It should be such that the general idea and major contributions of the dissertation are conveyed without reading the dissertation.
-
-  An abstract should be concise and to the point.
-  It is a misunderstanding to make an abstract an outline of the dissertation and words “the first chapter”, “the second chapter” and the like should be avoided in the abstract.
-
-  Keywords are terms used in a dissertation for indexing, reflecting core information of the dissertation.
-  An abstract may contain a maximum of 5 keywords, with semi-colons used in between to separate one another.
-
-  % Use comma as separator when inputting
+  With the rapid development of internet technologies, the network protocol stack plays an increasingly vital role in modern operating systems. Lightweight stacks such as lwIP and smoltcp have been widely adopted in embedded systems, IoT devices, and resource-constrained environments. This paper investigates and implements a cross-architecture network protocol stack interface module based on the ArceOS operating system, enabling the integration of both lwIP and smoltcp. By designing and implementing a unified system call interface, the operating system can flexibly switch between different protocol stacks to meet the demands of various application scenarios.
+  
+  The paper first analyzes the architectural design of ArceOS, focusing on addressing compatibility issues between network protocol stacks, memory management, and system call interfaces. Leveraging the safety and performance features of the Rust programming language, we design an extensible system call interface that supports multiple protocol stacks in parallel. Through conditional compilation and feature flags, the system can selectively integrate either lwIP or smoltcp. To ensure thread safety in multicore environments, mutexes and other synchronization mechanisms are employed.
+  
+  During implementation, a network stack interface compatible with the Starry-Next operating system architecture is developed, supporting common system calls such as SOCKET, BIND, CONNECT, SENDTO, and RECVFROM across four architectures. The design enables dynamic switching and seamless integration of multiple network stacks. Experimental results demonstrate that this approach significantly improves flexibility, scalability, and performance of network communication, particularly in resource-limited embedded devices and high-concurrency environments.
+  
+  Functionality and performance tests conducted on the QEMU virtual platform validate the feasibility of the proposed network stack interface design. This design not only enhances the network management capabilities of the operating system but also provides efficient support for lightweight protocol stacks, meeting the diverse needs of modern applications.
+  
   \thusetup{
-    keywords* = {keyword 1, keyword 2, keyword 3, keyword 4, keyword 5},
+  keywords* = {Componentized Operating System, Monolithic Kernel, ArceOS, starry-next, System Call, Lightweight Protocol Stack, lwIP, smoltcp, Memory Safety, Concurrent Processing},
   }
 \end{abstract*}

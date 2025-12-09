@@ -1,0 +1,189 @@
+\section{RQ1：RFL 的现状如何？}
+
+本节首先基于所收集的提交记录、问题追踪（issues）与邮件交流，对 Rust-for-Linux（RFL）当前的开发状态进行了系统分析。随后，我们通过深入探讨 RFL 的安全抽象层与驱动实现，揭示 Rust 安全模型与内核传统编程范式之间的张力。
+
+\subsection{RFL 开发现状}
+
+我们的关键观察是：尽管 RFL 项目仍处于早期，但其底层基础设施（如中断 irq、内存管理 mm、调度 sched）已较为成熟；而驱动与文件系统（作为相对独立的子系统）则明显不足，预计将成为下一阶段发展重点。但由于缺乏同时熟悉 Rust 与内核开发的高质量审稿人，该进展受到显著制约。
+
+\subsubsection{方法论}
+
+我们通过 GitHub 上的 PR 与提交记录，以及 Linux 邮件列表中的补丁记录，收集了 RFL 项目的代码，因为 RFL 社区通常在提交内核主线之前，会先在 GitHub 上进行协作开发 \cite{37_collaboration_method_rfl_2023}。
+
+我们根据 RFL 社区的协作模型将代码分为三个阶段：
+
+\begin{enumerate}
+  \item \textbf{待审（pending）}：仍处于 GitHub PR 中，等待首次审查；
+  \item \textbf{候审（staged）}：已通过 PR 阶段，进入邮件列表供内核子系统维护者正式审查；
+  \item \textbf{已合并（merged）}：正式被合并至 Linux 主线或 Linux-next 分支。
+\end{enumerate}
+
+总体而言，我们共收集到 160 余条已合并提交（约 1.9 万行代码），1300 多条候审提交（11.2 万行）与 500 多条待审提交（18.6 万行）。随后，我们使用自研工具基于正则表达式解析内核数据结构与函数接口，并按子系统与上述三阶段统计其演化与分布。
+
+\subsubsection{结果分析}
+
+\paragraph{（1）开发进度}
+
+我们希望评估当前 RFL 代码库与理想中的全面 Rust 化内核之间的差距。从代码行数角度看，已合并代码仅占内核总量的约 0.125\%，而其余 92.9\% 的代码仍处于待审或候审阶段。如图~\ref{fig:wrap_progress} 所示，我们进一步将已合并代码按其所属子系统分类展示。
+
+\textbf{洞察1：驱动、网络与文件系统构成 RFL 的“长尾”区域。}我们观察到一个明显的长尾现象：大部分 RFL 代码集中于调度器、内存管理与 IRQ 相关的基础设施。而与 Linux v6.2 中 78\% 代码量相关的驱动、文件系统、网络与安全子系统，仅覆盖极少部分。这一现象合理：基础子系统为多数驱动共享，优先支持具有更高价值；而驱动与文件系统通常与特定设备强相关，需更高编程与审查成本。例如，netdev 社区审查一个网络 PHY 驱动补丁便历经了 6 个月与 11 个版本迭代 \cite{46_network_phy_driver_2023}。
+
+\paragraph{（2）补丁分布}
+
+为分析 RFL 内部组成的演化过程，我们将补丁按使用场景分类为三类：Rust 编译器相关、Kbuild 系统支持与安全抽象层构建，并绘制其时间变化趋势，如图~\ref{fig:patch_distribution} 所示。
+
+\textbf{洞察2：RFL 的基础设施趋于稳定，安全抽象与驱动将成为后续重心。}证据包括：
+
+\begin{itemize}
+  \item Kbuild 相关补丁占比逐步下降，说明构建系统已基本完成；
+  \item 安全抽象层补丁占比显著提升，在 18 个月内从 20\% 提高至 60\%；
+  \item 在 2023 年 4 月出现一个提交激增点，对 RFL 库进行修改以支持固定初始化对象的安全实现 —— 修复前，gpio\_pl061 与 bcm2835\_rng 驱动仍使用 \texttt{unsafe} 初始化器。
+\end{itemize}
+
+\paragraph{（3）发展趋势}
+
+图~\ref{fig:rfl_trend} 展示了 RFL 项目的提交数与邮件活跃度随时间的演化，并标注 PR 平均审查时长。
+
+\textbf{洞察3：RFL 的瓶颈不在代码开发，而在于审查流程。}从左图斜率可见：RFL 在初期快速增长后逐渐趋于平台化；但右图显示，PR 审查速度显著下降。例如，2023 年上半年提交的 PR 平均需 280 小时才能被审阅，是三年前的 200 倍。这说明代码产出速度远快于其被“消费”的速度（即审查与合并）。
+
+这一现象的原因包括：
+
+\begin{itemize}
+  \item 缺乏熟悉 Rust 与内核的跨界审查者 \cite{27_envidence_rfl_community_2023,29_envidence_v4l2_community_2023}；
+  \item RFL 与内核子系统在协作习惯上的错位（如响应周期与风格） \cite{28_envidence_rfl_community_2023}；
+  \item 存在发展“死锁”：子系统社区倾向于先看到 Rust 驱动才审查抽象层，而没有抽象层又难以构建驱动 \cite{39_deadlock_rfl_abstraction_2023}。好在该问题已引起注意，并已有初步解决方案提出 \cite{34_rfl_breaks_rule_2023}。
+\end{itemize}
+
+令人鼓舞的是，RFL 正逐步被主线社区所接纳。例如，NVMe、NULL block、V4L2 与 e1000 等近期驱动，皆由内核社区主导开发并已采用 RFL 实现。
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.9\linewidth]{figures/wrap_progress.jpg}
+  \caption{RFL 已合并的 API 封装进度概览}
+  \label{fig:wrap_progress}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.9\linewidth]{figures/patch_distribution.jpg}
+  \caption{RFL 补丁类型时间分布：Rust 编译器、Kbuild、抽象层}
+  \label{fig:patch_distribution}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.9\linewidth]{figures/rfl_trend.jpg}
+  \caption{RFL 提交与审查趋势图（左：代码提交；右：平均审查时长）}
+  \label{fig:rfl_trend}
+\end{figure}
+
+\subsection{利用安全抽象实现 Linux 内核的 Rust 化}
+
+安全抽象是实现 Linux 内核 Rust 化的关键路径之一，也是 RFL 代码量中最大的组成部分之一（见 §3.1）。顾名思义，该抽象层安全地将 C 编写的内核扩展到 Rust 驱动中：通过对内核数据结构和接口的抽象封装，使其在被调用时仍能保证内存与线程安全。
+
+\paragraph{挑战：驯服内核编程范式}
+
+为构建安全抽象层，RFL 首先将内核中的数据结构与接口翻译成 Rust 风格；随后，将其包装为 Rust 接口并导出给驱动使用（见 §2）。尽管该流程看似直接，但 RFL 需要应对一个关键挑战：如何将内核的编程范式与 Rust 的安全规则相协调？
+
+例如，Linux 内核广泛使用类型转换、指针运算与位操作等技巧，这些都与 Rust 的理念存在冲突。为解决这一矛盾，RFL 采用了一系列规避策略，系统化地将内核状态纳入 Rust 风格管理体系，甚至推动语言自身演进以适应内核环境。
+
+\paragraph{内核数据结构转换}
+
+RFL 借助 \texttt{bindgen} 工具自动生成内核 C 结构体在 Rust 中的绑定。该过程基于规则驱动与语法转换机制，将 C 类型与符号翻译为其对应的 Rust 表达式。如 C 中的 \texttt{uint32\_t} 会被映射为 \texttt{core::ffi::c\_uint}，该类型是 Rust 原语类型 \texttt{u32} 的别名。该过程由 rust-bindgen 执行，遵循表~\ref{tab:bindgen_rules} 所列转换规则。
+
+但并非所有 C 类型都能被一一映射为 Rust 原语。我们发现这种不兼容主要体现在内核中为强控内存布局而使用的语言特性上。
+
+\textbf{洞察4：内核对内存布局精细化控制的主动设计与 Rust 哲学冲突，带来额外开销。}
+
+\begin{itemize}
+  \item \textbf{模拟位字段与联合体}。内核常用位字段和联合体提升内存效率，如 e1000 驱动用一个字存储多个标志位。但位操作违反 Rust 内存安全原则，因此无法被直接支持。RFL 使用字节数组模拟位字段，访问器方法负责读写位。虽然 Rust 支持 union，但无法提供与 C union 的 ABI 兼容性。因此，RFL 自定义一个 \texttt{\_\_BindgenUnionField} 结构体，并用 \texttt{transmute} 操作在运行时重解释内存，全部位于 \texttt{unsafe} 块中。这些模拟带来的主要开销体现在二进制体积增加（见 §4.2）。
+  
+  \item \textbf{属性支持不完整}。为提升局部性，内核结构常使用 \texttt{packed} 与 \texttt{aligned} 等属性。例如，\texttt{task\_struct} 将调度信息按 cache line 对齐。尽管 Rust 提供 \texttt{\#repr(C)} 支持，但仍可能错误处理某些属性，导致 \texttt{bindgen} 生成错误代码 \cite{7_bindgen_does_not_2019, 9_bindgen_mishandles_aligned_2020}。对于某些非常用属性，RFL 尚不支持，如 BTF 标记 \cite{21_rfl_discards_btf_2022}。而如 \texttt{randomize\_layout}，虽被内核用于缓解内存攻击，RFL 则忽略该属性，因为 Rust 的所有权机制与边界检查已能规避该类问题 \cite{58_address_space_layout_2024}。
+\end{itemize}
+
+尽管生成的绑定与 C 结构体在数据布局上等价，但因其大量使用裸指针（\texttt{*mut}），无法直接向 Rust 驱动暴露。为此，RFL 使用辅助类型对绑定结构进行封装，并嵌入 Rust 风格的语义。
+
+\textbf{洞察5：RFL 使用辅助类型将内核数据的管理托管给 Rust，同时操作逻辑仍由内核负责。}
+
+具体而言，RFL 借助以下两种 Rust 特性实现内核数据结构的安全管理：
+
+\begin{itemize}
+  \item \textbf{类型与 \texttt{Deref} 强制转换}。RFL 在嵌入内核结构体时重载其内存访问路径，将裸指针操作转化为类型安全的访问。举例而言，设备结构中常含 \texttt{void *} 指针指向设备私有数据，C 中运行时类型转换频繁。为此，RFL 为这些结构体实现 \texttt{Deref} trait，使解引用自动转化为正确类型。
+  
+  \item \textbf{生命周期自动管理}。RFL 引入三种低层类型（\texttt{ScopeGuard}、\texttt{ARef}、\texttt{opaque}），绑定至辅助类型上，实现生命周期机制。例如，\texttt{ScopeGuard} 在作用域结束时通过 Drop 自动释放资源，\texttt{ARef} 在引用计数变动时自动执行增减逻辑。相比传统内核开发中需显式调用 \texttt{get\_task} / \texttt{put\_task}，Rust 通过这些机制固化了非文档化的编程约定。
+\end{itemize}
+
+例如，在互斥锁或自旋锁中，RFL 重写其后端实现逻辑：在管理侧使用 \texttt{Deref} 转换访问锁保护数据，利用 \texttt{ScopeGuard} 进行内存回收；在操作侧仍调用原内核锁函数。
+
+\paragraph{内核函数包装}
+
+内核函数的绑定与结构体转换使用类似规则。随后，RFL 在安全抽象层中广泛使用 Rust traits 将函数包装为结构体成员或 trait 方法，具体包括：
+
+\begin{itemize}
+  \item \textbf{函数成员归类结构体中}。将某一类结构体相关函数归类为其成员，形成 OOP 风格。例如，\texttt{queue\_work\_on} 与 \texttt{\_\_INIT\_WORK\_WITH\_KEY} 被集成为 \texttt{Queue} 结构体的方法，增强代码可读性，并可避免空指针传参问题。
+  
+  \item \textbf{函数指针建模为 trait}。内核中大量回调函数以函数指针形式存在，RFL 将其定义为辅助类型的 trait，并指定绑定类型与所有者结构，避免类型不匹配引发的漏洞 \cite{16_linux_cve_caused_2022}。
+  
+  \item \textbf{包装内联函数与宏}。内核驱动广泛使用内联函数与宏（如 \texttt{for\_each\_online\_cpu}）。RFL 使用非内联 Rust 函数包装内联 C 函数，因当前 Rust 对 C FFI 的内联支持不友好，虽然可实现但不推荐 \cite{44_lto_optimization_rust_2023}。而函数宏则更倾向于使用辅助函数而非 Rust 宏重写，主要因为 RFL 不希望维护两套易变的接口 \cite{82_liwei_guo_transkernel_2019}。
+\end{itemize}
+
+\begin{table}[h]
+    \centering
+    \caption{rust-bindgen 中 C 到 Rust 的翻译规则}
+    \begin{tabular}{p{2.5cm}p{4.5cm}p{5cm}}
+      \toprule
+      \textbf{类别} & \textbf{C 中的定义} & \textbf{Rust 映射} \\
+      \midrule
+      类型 & \texttt{foo} & \texttt{core::ffi::c\_foo} \\
+      类型 & \texttt{foo *} & \texttt{*mut foo} \\
+      \multirow{3}{*}{属性} 
+            & \texttt{aligned} & \texttt{\#repr(C)}（有 caveats \cite{7_bindgen_does_not_2019,9_bindgen_mishandles_aligned_2020}） \\
+            & \texttt{unused}  & 忽略 \\
+            & \texttt{weak}    & 忽略 \\
+      属性 & \texttt{randomize\_layout} & 忽略（因已由 Rust 所有权语义处理） \\
+      函数指针 & \texttt{fn} & \texttt{Option<fn>} \\
+      \bottomrule
+    \end{tabular}
+    \label{tab:bindgen_rules}
+\end{table}  
+
+\subsection{使用 Rust 编写设备驱动}
+
+随着编程范式从 C 语言转向 Rust，设备驱动开发中的“数据布局”也由传统的结构对齐逻辑转变为“数据所有权”视角的推理。在本节中，我们将从开发者视角出发，描述这种范式迁移对驱动开发的具体影响。
+
+\paragraph{设备探测（Device Probing）}
+
+开发者需实现设备探测回调函数，在其中分配内核资源、初始化设备数据，并在必要时注册中断处理函数。相较于 C 写法，Rust 驱动的显著不同在于，开发者必须为设备数据显式标注所有权类型，即明确哪些实体可以访问这些数据。
+
+例如：若数据可能被多个线程共享（如加锁结构），开发者需要用 \texttt{Arc} 包裹；若希望数据不可移动以支持与 C 接口共享，则需使用 \texttt{Pin}。更复杂的是，这些所有权标注往往是嵌套的，难以一目了然。
+
+例如：e1000 网卡驱动中的接收环形缓冲区包含一个 \texttt{RxDesc} 描述符数组，并受自旋锁保护，其类型为：
+\[
+\texttt{Pin<Box<SpinLock<Box<Ring<RxDesc>>>>>>}
+\]
+每一层嵌套类型都需调用对应的初始化器，如 \texttt{Pin::from}、\texttt{Box::try\_new} 等 \cite{62_e1000_nic_driver_2024}。
+
+\paragraph{实现驱动函数}
+
+接下来，开发者需要实现驱动框架所要求的函数，例如网卡驱动需实现 \texttt{ndo\_open} 与 \texttt{ndo\_start\_xmit} 回调函数（属于 \texttt{net\_device\_ops}）。这一步在流程上类似于传统 C 开发，即通过硬件手册中描述的行为逻辑，开发者完成设备驱动的核心操作逻辑。
+
+然而，Rust 在内核空间的安全规则也带来了一些新的实现挑战：
+
+\begin{itemize}
+  \item \textbf{（1）动态数组实现复杂}。C 驱动常用裸指针实现可变长数组，用于存储动态内核对象（如 pages）。而在 Rust 驱动中，开发者需引入多个封装层并实现 \texttt{dyn\_num} trait 以支持动态数量。如图~\ref{fig:dyn_array} 所示的 RROS 示例中，为实现等价的动态数组，Rust 实现增加了 83\% 的代码行数，显著膨胀了目标文件体积 \cite{96_hongyu_li_rros_2023}。
+  
+  \item \textbf{（2）内核上下文问题仍需人工判断}。Rust 的安全规则并不自动检查执行上下文（如原子上下文与可睡眠上下文），无论是在编译时还是运行时。因此，调用方的上下文类型仍需由开发者自行判断与保证线程安全。
+\end{itemize}
+
+\paragraph{设备清理}
+
+当内核卸载设备或初始化过程出错时，驱动需释放已分配的资源。传统 C 驱动普遍采用 \texttt{goto} 跳转到统一的资源清理位置。而在 Rust 驱动中，这一过程可由 \texttt{Drop} trait 自动完成。通过 RFL 安全抽象层的封装，Rust 能在生命周期结束或错误发生时自动回收相关资源，显著减少了人工管理负担。
+
+\textbf{洞察6：使用 Rust 编写安全驱动的最大挑战，在于调和 Rust 的静态、不可变规则与内核编程的灵活性，这种矛盾往往被 RFL 与 Linux 社区所忽视。}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.9\linewidth]{figures/dyn_array_example.jpg}
+  \caption{在 RFL 驱动中实现动态数组的复杂性示例 \cite{96_hongyu_li_rros_2023}}
+  \label{fig:dyn_array}
+\end{figure}

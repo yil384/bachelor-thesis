@@ -1,0 +1,25 @@
+\section{相关工作}
+
+\subsection*{对野外环境中 Rust 使用的理解}
+
+已有研究从多个角度分析了 Rust 在实际项目中的 unsafe 使用情况。例如，部分工作以 Tock\cite{94_amit_levy_multiprogramming_2017}、TiKV\cite{6_tikv_transactional_key_2016} 与 Redox\cite{5_redox_unix_like_2015} 等流行 Rust 项目为对象，研究其 unsafe 使用场景及背后的设计动因\cite{71_vytautas_astrauskas_how_2020,79_ana_nora_evans_2020,83_sandra_höltervennhoff_wouldnt_2023,111_xiaoye_zheng_closer_2023}，从而为 Rust 开发者提供如何更合理使用 unsafe 的实践指导。
+
+另一些研究则聚焦于用户程序和 Rust 编译器中的 bug，分析其底层原因\cite{103_boqin_qin_understanding_2020,107_xinmeng_xia_understanding_2023,108_hui_xu_memory_safety_2021}。与这些工作不同，本文专注于对 Rust-for-Linux (RFL) 项目的研究，从 Rust 语言与 Linux 内核代码库的融合过程中提炼关键经验与教训，并评估 RFL 是否达到了其最初设定的目标，如提升安全性与实现零开销抽象。
+
+\subsection*{Rust 的运行时开销}
+
+尽管 Rust 旨在达到与 C 相当的运行效率，学界仍有不少研究探索其在实际中的开销表现\cite{73_abhiram_balasubramanian_system_2017,81_amélie_gonzalez_takeaways_2023,110_yuchen_zhang_towards_2023}。这类研究通常将同一程序用 Rust 和 C 各自实现并比较其性能差异，但使用的基准程序大多较为简单，例如不足百行代码的经典算法示例，难以反映操作系统等复杂程序的真实情况。
+
+Gonzalez 等\cite{81_amélie_gonzalez_takeaways_2023} 实现了一个非平凡的 UDP 驱动，并从端到端视角比较 Rust 与 C 实现的差异。而我们则基于 Linux 驱动，系统性地度量了运行时指标与对象体积开销，从而更全面地评估 Rust 的开销表现。
+
+\subsection*{基于 Rust 的操作系统内核}
+
+近年来，Rust 已成为系统软件开发的热门语言，学术界与工业界均探索基于 Rust 开发新型操作系统与内核，以适配嵌入式设备与个人计算机等不同场景\cite{73_abhiram_balasubramanian_system_2017,92_stefan_lankes_exploring_2019,93_amit_levy_ownership_2015,94_amit_levy_multiprogramming_2017,95_amit_levy_case_2017,99_a_light_reenix_2015,101_vikram_narayanan_redleaf_2020}。
+
+然而，这些工作大多关注如何构建纯 Rust 内核，并未深入探讨 Rust 与现有 C 代码融合的过程，而这正是当前面临的技术挑战。同时，已有研究亦未关注如何构建安全抽象以重用遗留代码。因此，本文所获得的经验与结论对于未来的 Rust 内核开发也具有重要参考价值。
+
+\subsection*{Rust 的增强机制}
+
+为使 Rust 更安全且更易于开发者使用，已有大量研究提出相关增强机制。一部分工作关注影响 Rust 普及率的因素，并提出降低学习门槛的建议\cite{77_michael_coblenz_multimodal_2020,112_shuofei_zhu_learning_2022}。另一些工作则致力于提升 unsafe 块的安全性，手段包括形式化验证\cite{86_ralf_jung_rustbelt_2017}、静态分析\cite{98_zhuohua_li_mirchecker_2021}、沙箱机制\cite{72_yechan_bae_rudra_2021,74_inyoung_bang_trust_2023,89_paul_kirth_pkru_2022,91_benjamin_lamowski_sandcrust_2017,100_peiming_liu_securing_2020,104_elijah_rivera_keeping_2021} 等。
+
+我们的研究同样为更好地将 Rust 融入 Linux 提供了启示，包括如何处理 unsafe 安全性、如何设计测试机制以及如何引导社区共建等方面。

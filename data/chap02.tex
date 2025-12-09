@@ -1,149 +1,339 @@
-% !TeX root = ../thuthesis-example.tex
+\chapter{ArceOS 操作系统架构分析与 starry-next 组件对接}
 
-\chapter{图表示例}
+\section{ArceOS 架构总览与设计原则}
 
-\section{插图}
+ArceOS 是一个采用 Rust 编写的实验性模块化操作系统，整体以 Unikernel 为基础形态进行设计，强调灵活性、可裁剪性与高效性。其目标在于通过组件化的方式，构建一个既可运行于嵌入式环境，又能适配通用计算场景的操作系统平台。整个系统围绕“高内聚、低耦合”的组件组织方式，将操作系统功能拆分为多个可重用的构建单元，并依据功能职责分层构建系统架构。
 
-图片通常在 \env{figure} 环境中使用 \cs{includegraphics} 插入，如图~\ref{fig:example} 的源代码。
-建议矢量图片使用 PDF 格式，比如数据可视化的绘图；
-照片应使用 JPG 格式；
-其他的栅格图应使用无损的 PNG 格式。
-注意，LaTeX 不支持 TIFF 格式；EPS 格式已经过时。
+从系统构成角度看，ArceOS 的功能组件可划分为两类：一类为通用性强、与操作系统实现弱耦合的“元件”，如链表、页表、调度器、基本同步原语等，具有良好的可移植性；另一类为紧密结合 ArceOS 架构设计的“模块”，例如任务调度、虚拟内存抽象、系统调用处理、网络栈与文件系统接口等，通常依赖于 ArceOS 的特定设计理念，不易直接复用于其他系统。
 
-\begin{figure}
-  \centering
-  \includegraphics[width=0.5\linewidth]{example-image-a.pdf}
-  \caption*{国外的期刊习惯将图表的标题和说明文字写成一段，需要改写为标题只含图表的名称，其他说明文字以注释方式写在图表下方，或者写在正文中。}
-  \caption{示例图片标题}
-  \label{fig:example}
+为了支撑上述组件划分逻辑，ArceOS 借助 Rust 的 crate 管理机制构建了结构清晰、依赖有序的模块体系。每个组件以 crate 为最小单元存在，所有依赖关系均在 Cargo.toml 中显式声明，系统整体依赖图严格构建为有向无环图（DAG），有效避免传统系统中常见的循环引用和隐式耦合问题。对于极少数确实存在依赖回环需求的组件（例如任务调度与中断屏蔽之间的调用），ArceOS 提供了 	exttt{crate\_glue} 特殊组件用于显式桥接，从而在结构上维持系统的清晰性。
+
+目前，ArceOS 已实现超过 30 个可复用元件与 10 余个功能模块，涵盖运行时管理（axruntime）、内存管理（axalloc）、任务调度（axtask）、进程管理（axprocess）、命名空间机制（axns）、网络支持（axnet）、文件系统（axfs）、设备驱动（axdriver）等核心功能，具备良好的跨平台适配能力。系统已支持 x86\_64、RISC-V、AArch64 等主流处理器架构，并成功部署于 QEMU/KVM 虚拟化平台、树莓派、黑芝麻开发板等多种实际设备，显示出强大的可移植性。
+
+从功能分层视角，ArceOS 的架构层次如下：
+\begin{itemize}
+    \item \textbf{元件层}：位于架构底部，封装系统中与平台无关的基础能力，如内存管理算法、链表结构、自旋锁等，强调高复用性与最小依赖；
+    \item \textbf{模块层}：构成系统的内核功能，包括任务调度、内存映射、网络协议栈、文件系统等，通常由 axruntime 在启动阶段按需初始化；
+    \item \textbf{API 层}：将模块层能力以接口形式暴露给用户程序，支持 Rust 本地调用及 POSIX 兼容接口，方便移植已有 C 应用；
+    \item \textbf{用户库层}：提供对 Rust 标准库、libc 等用户态库的适配封装，提升生态兼容性；
+    \item \textbf{应用层}：运行于系统之上的最终用户程序，可直接使用上述接口访问系统服务。
+\end{itemize}
+
+系统在构建时允许通过 Rust 的 \texttt{feature} 条件编译机制裁剪模块功能。例如 axalloc 可支持 slab、TLSF、buddy 等多种内存分配算法，通过 Cargo 配置项可灵活启用所需算法，未启用部分不会参与编译，从而减小最终镜像体积，提高构建效率。
+
+此外，在性能设计方面，ArceOS 秉持“本地直通调用”的思路。Rust 应用访问系统接口时可绕过传统系统调用的上下文切换，依赖零开销抽象（zero-cost abstraction）直接调用模块层接口，带来显著性能优势。实测数据显示，在文件 I/O 操作中，相比 POSIX 接口，ArceOS 的本地 API 访问路径可带来 50\% 以上加速；在 Redis 应用场景下，系统延迟较 Linux 降低达 33\%。
+
+通过组件化结构、现代语言机制与跨平台能力的结合，ArceOS 构建出一个结构高度清晰、功能可裁剪、性能可优化、复用性强的操作系统体系架构，并为其向宏内核、虚拟化平台、微服务环境等多种部署形态演进提供了坚实的基础。对于元件层和模块层的架构分析见 图 \ref{fig:arceos-arch}。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/arceos_system_arch.pdf}
+    \caption{ArceOS 系统架构图}
+    \label{fig:arceos-arch}
 \end{figure}
 
-若图或表中有附注，采用英文小写字母顺序编号，附注写在图或表的下方。
-国外的期刊习惯将图表的标题和说明文字写成一段，需要改写为标题只含图表的名称，其他说明文字以注释方式写在图表下方，或者写在正文中。
+\section{关键模块分析：任务管理与运行机制}
+ArceOS 的任务管理系统是通过 axruntime、axtask、axprocess 与 axns 四大模块共同支撑的。以下简要分析其职责与实现逻辑。
 
-如果一个图由两个或两个以上分图组成时，各分图分别以 (a)、(b)、(c)...... 作为图序，并须有分图题。
-推荐使用 \pkg{subcaption} 宏包来处理， 比如图~\ref{fig:subfig-a} 和图~\ref{fig:subfig-b}。
+\subsection{axruntime：运行时初始化核心}
 
-\begin{figure}
+\texttt{axruntime} 模块作为 ArceOS 的运行时核心，承担了在系统完成底层硬件初始化（由 \texttt{axhal} 模块完成）之后，进入用户主程序之前的所有内核初始化任务。它是每个 ArceOS 应用构建镜像中必须链接的组件，负责构建运行时环境、调度关键功能模块的初始化、注册处理例程，并最终跳转执行用户应用主函数 \texttt{main()}。
+
+其主要功能包括但不限于：
+
+\begin{itemize}
+  \item \textbf{输出系统启动信息与平台参数}：在控制台输出 ArceOS 的标识、构建架构、目标平台、编译模式、SMP 核心数量等关键参数，方便调试与识别；
+  \item \textbf{日志系统初始化}：调用 \texttt{axlog::init()} 初始化日志模块，并配置日志输出等级，后续的模块初始化过程均通过该日志系统进行记录；
+  \item \textbf{内存管理器启动}：当启用 \texttt{alloc} 特性时，调用内存分配器初始化函数，优先选择最大的可用内存段作为主分配区，其余段注册为附加堆空间，构建全局堆；
+  \item \textbf{页表与虚拟内存支持}：若启用 \texttt{paging} 特性，将加载内存映射相关元件（如页表管理），并建立初始的虚拟内存环境；
+  \item \textbf{平台设备初始化}：调用 \texttt{axhal::platform\_init()} 完成当前目标平台上串口、中断控制器、定时器等必要外设的统一初始化；
+  \item \textbf{调度器与任务系统初始化}：启用 \texttt{multitask} 特性时，将加载并初始化内核调度器，构建任务队列、调度策略等运行时机制；
+  \item \textbf{驱动与子系统加载}：若启用了 \texttt{fs}、\texttt{net} 或 \texttt{display} 特性，系统会通过 \texttt{axdriver::init\_drivers()} 加载所有设备驱动并初始化对应子系统，如文件系统、网络协议栈、显示模块等；
+  \item \textbf{多核处理器支持}：如启用对称多处理（SMP）功能，\texttt{axruntime} 将通过 \texttt{start\_secondary\_cpus()} 启动副处理器核心，并等待全部 CPU 完成同步初始化；
+  \item \textbf{中断注册与启用}：启用中断功能（\texttt{irq} 特性）时，初始化定时器中断例程，完成中断分发器的注册，最后启用 CPU 中断机制；
+  \item \textbf{线程本地存储初始化}：在未启用多任务功能但启用了线程局部存储（\texttt{tls}）的情形下，配置主线程的线程本地区域，初始化线程指针；
+  \item \textbf{调用构造函数与异常处理钩子}：系统在最终转入用户主函数之前，统一调用所有构造函数（通过 \texttt{ctor\_bare::call\_ctors()}），并注册崩溃处理、任务标识记录等全局例程。
+\end{itemize}
+
+上述初始化过程通过条件编译机制进行裁剪，所有功能均通过 Cargo 的特性系统进行显式启用。源码中通过大量的 \texttt{\#[cfg(feature = "...")]} 注解控制不同代码路径的编译与执行，使得运行时的行为严格由构建配置决定，避免无用代码被纳入最终镜像，提高系统定制性与安全性。
+
+在多核启动场景下，主处理器首先进入 \texttt{rust\_main} 函数并完成平台初始化，随后通过统一的启动函数唤醒副核，副核进入 \texttt{rust\_main\_secondary}，执行包括内存页表、设备、调度器在内的独立初始化流程，最后完成同步后参与任务调度。
+
+\texttt{axruntime} 作为 ArceOS 启动流程中的桥梁模块，不仅完成内核功能模块的统一调度与资源准备，还通过灵活的裁剪机制实现了运行时的高度可配置性，为系统构建多形态内核（如 Unikernel、宏内核或虚拟机管理程序）提供了良好的扩展起点。
+
+\subsection{axtask：线程级任务调度核心}
+
+axtask 模块是 ArceOS 中负责任务生命周期管理的核心组件，涵盖任务的创建、调度、阻塞、唤醒与销毁。其设计基于单地址空间的微虚拟机理念，以线程（任务）为最小调度单元，不区分用户态进程与线程。模块提供灵活的调度策略和完整的同步机制，是 ArceOS 支持多任务执行和并发管理的基础。
+
+在 ArceOS 的设计中，任务被抽象为任务控制块（Task Control Block, TCB），每个任务包含唯一的 Task ID、调度状态、优先级、CPU 亲和性、栈信息和执行上下文（Context）。此外，还集成了线程本地存储（TLS）区域和用户自定义扩展字段，使得每个任务具备隔离的执行状态和灵活的扩展性。
+
+该模块的核心功能包括：
+
+\begin{itemize}
+  \item \textbf{任务创建与退出：} 通过 \texttt{spawn} 或 \texttt{spawn\_raw} 接口，可创建新任务并设置栈空间、任务名及入口函数，底层会构建 TCB 并初始化执行上下文。退出任务可通过 \texttt{exit} 接口，自动清理其占用的内存资源并触发等待队列的唤醒。
+  \item \textbf{调度策略支持：} 支持 FIFO（协作式）、轮转调度 RR（抢占式）和 CFS（完全公平调度），可通过 Cargo 特性灵活选择，适应不同实时性与公平性需求。调度器接收来自定时中断的时钟节拍，并根据就绪队列状态做出调度决策。
+  \item \textbf{阻塞与唤醒机制：} 提供 \texttt{WaitQueue} 实现线程阻塞与同步操作。任务可以在等待事件（如 I/O、条件变量）时主动进入等待队列，其他任务通过 \texttt{notify\_one} 或 \texttt{notify\_all} 唤醒被阻塞的任务，具备类似 Linux futex 的设计理念。
+  \item \textbf{优先级与 CPU 亲和性：} 提供 \texttt{set\_priority} 和 \texttt{set\_current\_affinity} 等接口，可设置当前任务的调度优先级和 CPU 绑定策略（CPU mask）。若任务当前所在核心不在其亲和集内，调度器会将其迁移至指定 CPU 上执行。
+  \item \textbf{空闲任务与线程回收：} 每个处理器核心都会运行一个特殊的 "idle task"，用于系统空转时节能等待中断。任务销毁由调度器统一完成，清理栈空间、上下文、TLS 和扩展字段，避免内存泄漏。
+\end{itemize}
+
+在实现层面，axtask 利用了 Rust 的 \texttt{Arc<T>} 智能指针构建任务引用系统，配合原子操作确保任务状态的并发安全性。调度队列由 \texttt{SpinLock} 保护，避免上下文切换期间产生竞态。多核支持（SMP）下，每个 CPU 拥有独立的运行队列，实现了任务的负载均衡与跨核调度。
+
+值得一提的是，axtask 还设计了扩展接口 \texttt{AxTaskExt}，支持用户为任务附加自定义结构体，可广泛应用于进程控制块（PCB）、资源统计、审计标识等扩展场景，提升了组件的可塑性与复用性。
+
+axtask 模块不仅是 ArceOS 支持多任务执行的关键基础设施，同时也是其组件化理念的典范体现，通过灵活配置与清晰边界设计，达到了高可定制、可裁剪、可移植的系统任务管理能力。
+
+\subsection{axprocess：多进程与会话支持}
+为了在宏内核形态下支持多用户程序并发执行，ArceOS 引入了 \texttt{axprocess} 模块，作为进程与线程管理的核心支撑模块。该模块不仅实现了传统操作系统中的进程创建、销毁与调度关系维护，还构建了进程组（\texttt{ProcessGroup}）和会话（\texttt{Session}）等高级抽象，为进程间资源管理与协同提供了结构化机制。
+
+每个进程（\texttt{Process}）作为系统调度的基本实体，拥有独立的地址空间、线程组、子进程链表、所属进程组与会话标识。用户可以通过 \texttt{Process::new\_init} 创建初始化进程，也可以通过 \texttt{fork} 机制复制当前进程上下文生成子进程，从而模拟类 Unix 系统中的进程继承语义。进程终止由 \texttt{Process::exit} 触发，之后由 \texttt{Process::free} 完成资源回收及僵尸态清理。
+
+为了实现精细化的进程管理，\texttt{axprocess} 提供了进程间关系接口，例如 \texttt{parent()} 和 \texttt{children()} 可获取当前进程的父子关系；\texttt{group()} 和 \texttt{create\_group()} 支持进程组的动态构建与迁移；而 \texttt{create\_session()} 则可新建独立的会话空间，使得终端控制和会话隔离成为可能。这些结构共同构成了进程间层级管理模型，支持系统调用的多进程交互场景。
+
+在多线程支持方面，\texttt{axprocess} 允许用户在已有进程上下文中调用 \texttt{new\_thread()} 接口生成附属线程，并将其加入线程组统一调度。线程终止由 \texttt{Thread::exit()} 实现，当线程组中所有线程退出后可自动触发资源回收。
+
+\texttt{axprocess} 模块通过多级抽象管理机制，实现了从单线程任务模型向多进程、多线程并发模型的自然过渡。该模块的引入使得 ArceOS 不再仅限于运行单应用 Unikernel，而具备承载多应用、多用户程序的能力，为支持更复杂的系统调用、进程隔离、用户级服务等提供了基础设施。
+
+\subsection{axns：命名空间机制}
+
+axns 模块在 ArceOS 中引入了一种轻量级命名空间机制，为每个线程提供独立或共享的资源视图，从而在系统级别实现资源的粒度隔离与访问控制。与传统操作系统全局共享资源的方式不同，axns 提供了灵活的资源隔离策略，尤其适用于需要高并发安全性和多任务运行的宏内核环境。
+
+该模块的核心功能包括：
+\begin{itemize}
+  \item \textbf{线程隔离与共享机制}：每个线程可独立拥有命名空间实例，从而隔离其工作目录、文件描述符等资源，也支持通过 \texttt{ResArc} 实现受控的资源共享；
+  \item \textbf{懒初始化支持}：资源实例在首次访问时才被实际初始化，避免了无效的系统开销，提高了启动性能；
+  \item \textbf{安全性与可维护性增强}：通过限制命名空间内资源的可见性，降低了线程间的资源竞争风险，提升系统鲁棒性；
+  \item \textbf{自动化资源管理}：命名空间在销毁时自动回收内存，确保无资源泄漏。
+\end{itemize}
+
+在实际实现中，\texttt{AxNamespace} 类型定义了命名空间的结构体，支持创建全局命名空间（所有线程共享）和线程本地命名空间（通过 \texttt{new\_thread\_local} 方法为每个线程分配独立资源）。两者在底层使用统一的资源段布局（由 \texttt{axns\_resource} 链接段定义），保证资源访问逻辑一致性。线程本地命名空间在创建时会从全局命名空间拷贝初始值，进而实现资源隔离。
+
+为了管理具体资源，axns 引入了 \texttt{ResArc<T>} 类型作为通用封装，它内部通过 \texttt{LazyInit<Arc<T>>} 实现资源的懒加载与引用计数共享。开发者可以使用 \texttt{init\_new} 或 \texttt{init\_shared} 接口分别创建独占或共享资源副本，确保资源仅在实际使用时初始化且被正确释放。
+
+此外，axns 提供了 \texttt{def\_resource!} 宏，允许开发者以统一方式定义命名空间资源并自动注册至资源段中，实现跨线程的自动资源绑定和访问接口封装。该设计简化了资源接口实现，提高了模块间的解耦性。
+
+axns 为 ArceOS 带来了灵活、低开销且高度安全的命名空间支持，在多线程或多进程系统中具备良好的扩展性与可维护性。
+
+\section{关键模块分析： 文件系统管理与网络协议栈}
+在 ArceOS 中，axfs 和 axnet 模块分别负责文件系统与网络协议栈的管理与实现。它们通过统一的接口与底层驱动进行交互，为用户程序提供高效、灵活的文件与网络访问能力。
+
+\subsection{axdriver：设备驱动管理}
+
+axdriver 是 ArceOS 中用于设备抽象与管理的核心模块，主要功能是统一封装并调度不同类型的设备驱动，确保系统在多平台、多设备类型的运行环境下具备良好的兼容性与可扩展性。该模块当前支持三大类主流设备：网络设备、块设备（如磁盘）以及图形显示设备。
+
+其设计目标是通过模块化接口屏蔽设备底层差异，使设备驱动的集成、配置与运行更加高效灵活。axdriver 的主要功能包括：
+
+\begin{itemize}
+  \item \textbf{设备抽象与接口统一}：为每类设备（如块设备、网卡、GPU）定义统一的操作接口，驱动开发者只需实现对应 trait 即可兼容框架调度，降低驱动编写与集成成本；
+  \item \textbf{驱动自动探测与注册}：支持 PCI 总线与 MMIO 两种设备探测机制，可自动识别并注册系统中已启用的硬件设备；
+  \item \textbf{静态与动态调度机制}：根据构建特性选择设备访问方式，支持静态分发（性能最优）与动态分发（灵活性强），例如在启用 \texttt{dyn} 特性时所有设备以 trait object 管理；
+  \item \textbf{驱动模型与封装结构}：所有已探测驱动将被统一封装为 \texttt{AllDevices} 结构并分类保存（如 \texttt{AxNetDevice}、\texttt{AxBlockDevice} 等），上层模块如 \texttt{axnet}、\texttt{axfs} 通过解包访问具体驱动；
+  \item \textbf{多设备支持与静态配置优化}：支持多实例设备的注册与调度；若明确只启用单一设备类型，可启用特性强制采用静态实例绑定，避免虚表分发带来的运行时开销。
+\end{itemize}
+
+目前，axdriver 模块已适配如下设备：
+\begin{itemize}
+  \item \textbf{块设备}：\texttt{ramdisk}（内存盘）、\texttt{virtio-blk}（VirtIO 块设备）、\texttt{bcm2835-sdhci}（树莓派 SD 控制器）；
+  \item \textbf{网络设备}：\texttt{virtio-net}（VirtIO 网卡）、\texttt{ixgbe}（Intel 82599 万兆网卡）、\texttt{fxmac}（飞腾平台适配网卡）；
+  \item \textbf{图形设备}：\texttt{virtio-gpu}（VirtIO 显卡）。
+\end{itemize}
+
+在系统初始化过程中，axdriver 调用 \texttt{init\_drivers()} 完成所有驱动的初始化与设备注册。所有设备的管理结构将在运行时传递给文件系统（\texttt{axfs}）、网络协议栈（\texttt{axnet}）等模块，用于构建具体的 I/O 通道和资源路径。通过特性组合与模块配置，axdriver 有效支撑了 ArceOS 在虚拟化平台、嵌入式板卡以及物理硬件等多场景下的运行需求。
+
+\subsection{axfs：文件系统管理}
+axfs 是 ArceOS 提供的文件系统模块，负责搭建虚拟文件系统（VFS）框架，并对多个具体文件系统进行统一管理与调度。该模块基于元件层的 axfs\_vfs 接口实现，定义了标准化的 inode、目录项、文件对象等抽象，使得不同类型的文件系统可以方便地接入系统。
+
+具体而言，axfs 实现了如下核心功能：
+\begin{itemize}
+    \item \textbf{虚拟文件系统抽象层：} 提供统一的接口封装，支持多种文件系统接入，如内存文件系统（ramfs）、设备文件系统（devfs）、进程文件系统（procfs）等；每种具体文件系统通过实现 axfs\_vfs 接口即可被系统识别并挂载。
+    
+    \item \textbf{静态挂载与按需初始化：} 系统在启动时根据配置文件或编译选项进行文件系统挂载，采用 Rust 的条件编译特性，自动选择启用的文件系统，避免无用代码的引入，降低系统体积。
+
+    \item \textbf{类 Rust 标准库 API 接口：} axfs 模块对外暴露了接近 Rust std::fs 模块的文件操作接口，如 \texttt{File::open}、\texttt{File::read}、\texttt{File::write}、\texttt{File::metadata} 等，支持多种打开选项（\texttt{OpenOptions}），并集成 \texttt{Seek}、\texttt{Read}、\texttt{Write} 等 trait，使用户空间开发更加简洁直观。
+
+    \item \textbf{目录管理与文件遍历：} 提供 \texttt{Directory} 结构用于目录的打开与遍历，支持创建、删除、重命名、读取目录项等操作，并通过 \texttt{ReadDir} 迭代器返回 \texttt{DirEntry} 实体以支持按需遍历。
+
+    \item \textbf{文件权限与元信息管理：} 通过 \texttt{Metadata} 提供文件类型（\texttt{FileType}）、权限（\texttt{Permissions}）、大小、是否为目录等信息查询，支持对文件属性的访问与调试。
+
+    \item \textbf{外部文件系统支持：} 通过对第三方组件如 \texttt{rust-fatfs} 的集成，ArceOS 支持 FAT 格式等常见磁盘结构，提高系统与传统工具链的兼容性。
+\end{itemize}
+
+在内部实现中，axfs 通过封装 VfsNode 对象与统一的权限控制接口（如 \texttt{Cap}、\texttt{WithCap}）实现对文件节点的抽象与访问校验，保障文件操作的安全性。文件句柄（\texttt{File}）内部管理读写偏移，并支持追加模式与截断操作；目录对象（\texttt{Directory}）则维护遍历状态，支持迭代式读取与分层路径访问。
+
+为了适配不同使用场景，axfs 中还实现了用于目录构建的 \texttt{DirBuilder}，支持递归创建与非递归控制，方便用户在运行时动态生成目录结构。此外，所有打开文件与目录均实现 \texttt{Drop} trait，确保系统资源在生命周期结束后被安全释放，避免文件句柄泄露。
+
+axfs 以模块化设计提供了一个可扩展、可裁剪的文件系统支持框架，既适用于资源受限的嵌入式平台，也能满足复杂文件系统访问需求，为 ArceOS 构建通用性操作系统平台提供了稳定的数据存储基础。
+
+\subsection{axnet：网络协议栈}
+
+axnet 模块是 ArceOS 中实现网络通信能力的关键组成，主要负责协议栈与网卡驱动的组织管理，并向应用程序提供统一的套接字（socket）接口。
+其设计充分考虑了可移植性、高性能和组件化需求，通过精细封装协议栈、驱动与接口逻辑，构建了独立于操作系统内核主线的网络子系统。
+
+\textbf{协议栈抽象与选择机制} \par
+ArceOS 提供对两类主流网络协议栈的支持，分别为：
+
+\begin{itemize}
+  \item \textbf{smoltcp}：一个以安全性和可验证性为目标的 Rust 网络协议栈，适用于资源受限的嵌入式场景；
+  \item \textbf{lwIP}：一套成熟稳定、以 C 编写的轻量级 TCP/IP 协议栈，在嵌入式与实时系统中广泛应用。
+\end{itemize}
+
+这两种协议栈均以元件层组件的形式提供，分别通过\verb|smoltcp_impl|与\verb|lwip_impl|模块集成。\verb|lib.rs|中的\verb|cfg_if!| 宏会根据编译特性选择使用哪一个协议栈，并为其注入统一接口实现，如\verb|TcpSocket|、\verb|UdpSocket|等结构体。
+
+\textbf{驱动适配与初始化流程} \par
+axnet 通过 \verb|AxDeviceContainer| 获取系统中的网卡设备（NIC），并调用 \verb|init_network| 函数对网络子系统进行初始化。该函数会选择一个主用网卡并绑定至当前协议栈上下文中。具体流程包括：
+
+\begin{enumerate}
+  \item 解析系统配置或设备管理信息，选取主用网卡；
+  \item 调用协议栈模块的 \verb|init| 方法初始化网络接口；
+  \item 创建 socket 集合结构，用于维护多套连接状态。
+\end{enumerate}
+
+此外，loopback 接口以虚拟网卡形式集成在 smoltcp 中，并借助 \verb|LoopbackDev| 实现内部数据回环机制，适配多协议栈统一使用。
+
+\textbf{套接字接口与应用透明性} \par
+axnet 对协议栈提供的底层 socket 实现进行了统一封装，面向应用程序暴露兼容 POSIX 的标准 socket API。其支持的操作包括：
+
+\begin{itemize}
+  \item TCP：\verb|connect|、\verb|bind|、\verb|listen|、\verb|accept|、\verb|send|、\verb|recv|；
+  \item UDP：\verb|send_to|、\verb|recv_from|、\verb|connect|、\verb|bind| 等；
+  \item DNS：\verb|resolve_socket_addr| 支持通过域名解析获取 \verb|SocketAddr| 地址结构。
+\end{itemize}
+
+该接口层具备可插拔性，能够动态绑定至不同的协议栈实现。开发者无需感知底层协议栈差异，即可编写一致性网络代码，大大简化了跨平台迁移与驱动维护成本。
+
+\textbf{传输模式与性能优化} \par
+为在资源受限系统中兼顾性能与实时性，axnet 当前采用基于轮询（polling）的网络调度策略。每次调用网络 API（如 \verb|recv|、\verb|accept| 等）时，会主动轮询一次网卡接口并刷新协议栈状态。
+
+为减少内存复制开销，axnet 设计了一套零拷贝（zero-copy）缓冲区机制：
+\begin{itemize}
+  \item 接收路径中，预先分配的缓冲区直接挂入网卡收包队列；
+  \item 接收到的数据被协议栈直接消费并处理；
+  \item 使用完毕后缓冲区被回收重用。
+\end{itemize}
+
+此机制在 lwIP 和 smoltcp 中均得到支持，并通过 \verb|AxNetDevice| 统一管理，提高整体吞吐能力。
+
+\textbf{非阻塞控制与多态支持} \par
+axnet 所有 socket 实例均支持非阻塞（non-blocking）与重用地址（reuse address）配置，可通过如下接口调用进行管理：
+
+\begin{itemize}
+  \item \verb|set_nonblocking(bool)| 设置非阻塞模式；
+  \item \verb|is_nonblocking()| 查询当前状态；
+  \item \verb|set_reuse_addr(bool)| 设置是否允许地址复用。
+\end{itemize}
+
+此外，UDP 套接字支持连接模式（\verb|connect|），允许指定固定收发端点以过滤非目标数据包，同时简化 send/recv 使用语义。
+
+\textbf{多协议栈兼容层设计} \par
+在内部实现层，axnet 利用了接口抽象与编译时特性选择机制，实现 smoltcp 与 lwIP 的统一封装。该设计具有如下特点：
+
+\begin{itemize}
+  \item smoltcp 的实现以 Rust 安全特性为核心，Socket 状态通过原子操作与 UnsafeCell 管理，实现状态自动转移与共享访问控制；
+  \item lwIP 的实现则基于 FFI 接口调用 C 语言栈结构，通过静态函数回调完成事件分发（如 accept、recv、connect）处理。
+\end{itemize}
+
+通过上述机制，axnet 成功将原生异构协议栈整合入统一运行框架，实现了在不同运行场景下灵活部署、透明切换的能力。
+
+axnet 模块将底层协议栈的复杂性屏蔽在抽象层之下，构建了一套高性能、可插拔、接口统一的网络通信子系统。其支持的特性如 socket 多态、非阻塞控制、DNS 查询与轮询调度机制，为 ArceOS 在嵌入式与系统级应用中的网络支持提供了坚实基础。
+
+
+% ----------------------------------------------------------------------------------------------------
+% 上半部分为ArceOS，已经写完了，下半部分为starry-next的过渡
+% ----------------------------------------------------------------------------------------------------
+
+
+\section{从 Unikernel 向宏内核的演进路径}
+ArceOS 最初面向高隔离性与安全性的场景，采用 Unikernel 风格进行设计，将应用与内核逻辑高度集成于单一地址空间中运行。然而，随着多任务、多应用场景的需求增长，单地址空间限制逐渐暴露，组件的通用化与可扩展性变得愈发重要。ArceOS 借助模块化组件框架与统一系统调用接口，逐步演化为支持多用户程序和完整进程生命周期管理的基础宏内核系统。
+
+本节将从系统初始化、运行时构建、用户程序加载、系统调用机制到退出流程，依次剖析 ArceOS 在演进过程中形成的关键支撑机制。
+
+\textbf{系统初始化与平台配置} \par
+系统启动阶段由 \texttt{axhal} 模块主导，通过读取 \texttt{axconfig} 中预定义的内存基址、内核加载地址、栈空间大小等信息，完成平台感知配置。随后生成目标平台对应的链接脚本，并跳转至启动入口（如 \texttt{\_start}），依次执行内存控制寄存器配置、MMU 启用、页表创建及异常向量初始化，为操作系统提供统一抽象的硬件运行基础。
+
+\textbf{运行时构建与多特性初始化} \par
+当平台初始化完毕，控制权转交给 \texttt{axruntime} 模块，其通过特性宏条件加载对应子系统，如内存分配器、调度器、文件系统、网络栈等。特别是在多核平台上，\texttt{start\_secondary\_cpus} 用于启动副核；在启用 \texttt{irq} 特性下，系统完成中断派发逻辑注册，为后续内核调度与 IO 处理打下基础。
+
+\textbf{用户程序加载与独立地址空间建立} \par
+在支持用户程序运行方面，ArceOS 提供 \texttt{new\_user\_aspace} 接口创建隔离页表，并通过 \texttt{load\_user\_app} 完成 ELF 程序段解析、虚拟内存映射、权限标记与入口跳转等。随后，调度器通过 \texttt{spawn\_task} 创建用户任务，并将其绑定至目标地址空间及用户栈，实现典型宏内核任务模型。相关逻辑图可以参考图 \ref{fig:load_app} 所示。
+
+\begin{figure}[htbp]
   \centering
-  \subcaptionbox{分图 A\label{fig:subfig-a}}
-    {\includegraphics[width=0.35\linewidth]{example-image-a.pdf}}
-  \subcaptionbox{分图 B\label{fig:subfig-b}}
-    {\includegraphics[width=0.35\linewidth]{example-image-b.pdf}}
-  \caption{多个分图的示例}
-  \label{fig:multi-image}
+  \includegraphics[width=0.5\textwidth]{figures/Load_app.pdf}
+  \caption{ArceOS 用户程序加载流程图}
+  \label{fig:load_app}
 \end{figure}
 
+\textbf{系统调用机制与资源访问抽象} \par
+不同的架构下有不同的系统编号表，系统调用为用户程序与内核模块的桥梁。系统通过注册统一陷阱入口（如 \texttt{register\_trap\_handler}），将用户态调用映射至 \texttt{handle\_syscall} 中的派发逻辑处理。内核根据调用编号分发至对应函数，如 \texttt{sys\_exit}、\texttt{sys\_write}、\texttt{sys\_clone} 等，实现任务退出、日志输出与资源申请等功能。相关逻辑图可以参考图 \ref{fig:syscall_flow} 所示。
 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.5\textwidth]{figures/ArceOS_syscall_flow.pdf}
+    \caption{ArceOS 系统调用流程图}
+    \label{fig:syscall_flow}
+\end{figure}
 
-\section{表格}
+\textbf{应用退出与资源回收} \par
+用户程序运行完毕后，通过 \texttt{sys\_exit} 发起退出请求，调度器等待其终止，并释放其地址空间、栈内存与任务控制块等结构。若为单任务场景，系统终止运行；多任务情形下，调度器继续调度其他就绪任务。
 
-表应具有自明性。表中参数应标明量和单位的符号。
-为使表格简洁易读，均采用三线表（例如表~\ref{tab:three-line}）。
-必要时可加辅助线，三线表无法清晰表达时可采用其他格式。
+\section{Starry-Next 宏内核框架设计与适配分析}
 
-表序与表题置于表的上方。表单元格中的文字一般应居中书写（上下居中，左右居中），
-不宜左右居中书写的，可采取两端对齐的方式书写。
+Starry-Next 是基于 ArceOS 组件化基座发展而来的宏内核操作系统完整实现，其设计充分继承并深化了组件化与模块化理念。系统通过清晰划分核心功能模块，并定义统一且稳定的接口规范，实现了对多进程管理、多地址空间、协议栈多样化以及高效异步 IO 的全面支持，极大提升了内核的灵活性与可扩展性。
 
-\begin{table}
+\subsection{系统架构总览}
+
+Starry-Next 采用分层设计，将系统划分为三大逻辑层：
+
+\begin{itemize}
+    \item \textbf{src 层}：作为系统的用户接口入口，负责接收外部请求、解析用户输入，进行系统调用的分发与初步管理，是用户态程序与内核之间的桥梁。
+    \item \textbf{api 层}：封装系统调用的具体实现，为用户态应用提供丰富且稳定的系统服务接口。该层将系统调用映射至底层核心模块，按照功能划分为任务、内存、文件系统、网络等子模块，保证调用接口的一致性与扩展性。
+    \item \textbf{core 层}：承载系统的核心功能逻辑，包括任务调度、内存管理、文件系统操作、信号处理、网络协议栈等核心模块。该层依赖 ArceOS 提供的底层组件库，利用其完善的硬件抽象和基础服务支持实现复杂内核功能。
+\end{itemize}
+
+三层结构间通过明确定义的接口进行交互，模块间保持低耦合、高内聚，既支持组件的独立开发、测试与替换，又保证了整体系统的协同稳定运行。此外，Starry-Next 支持模块的动态加载与卸载，灵活应对运行时功能变更和裁剪需求。
+
+其中，core 层的核心模块具体分析如下：
+
+\textbf{任务与进程管理模块} \par
+Starry-Next 支持完整的多进程模型。其任务模块通过调用 ArceOS 中 \texttt{axtask} 提供的 \texttt{spawn\_task}、\texttt{yield\_now}、\texttt{exit} 等接口创建调度实体。更高层的 \texttt{axprocess} 则封装了线程、线程组、进程组及会话管理逻辑，通过 api 层调用以支持 \texttt{fork}、\texttt{execve}、\texttt{waitpid} 等 POSIX 风格接口。
+
+\textbf{内存管理与地址空间控制} \par
+内存模块借助 ArceOS 的 \texttt{axmm} 组件完成地址空间的动态构建与映射维护。Starry-Next 通过接口函数如 \texttt{map}、\texttt{unmap}、\texttt{mprotect} 等实现用户空间堆、栈、共享内存段的分配与权限管理，支持按需映射、动态回收与安全隔离。
+
+\textbf{文件系统子模块} \par
+Starry-Next 使用 \texttt{axfs} 模块提供的通用文件操作接口，构建日志文件系统。通过系统调用封装层，用户可调用 \texttt{open}、\texttt{read}、\texttt{write}、\texttt{close} 等标准 API，实现对普通文件、目录及设备文件的统一访问。系统支持多文件系统挂载与动态加载，提升了文件存储灵活性。
+
+\textbf{网络协议栈与异步 IO 支持} \par
+Starry-Next 在网络模块设计上特别强化异步 IO 能力。其 \texttt{net} 子模块通过封装 TCP/IP 协议栈（如 lwIP 或 smoltcp），提供非阻塞 socket 接口。系统调用如 \texttt{sendto}、\texttt{recvfrom}、\texttt{setsockopt} 可实现事件驱动收发控制，结合 poll/epoll 接口机制，实现用户层高并发网络服务支持。
+
+此外，为适配多个协议栈共存，Starry-Next 在驱动层定义虚拟网络设备抽象，通过特征切换与注册机制自由切换实际使用协议栈。系统默认提供 IPv4 栈实现，并预留 IPv6、TLS 等后续扩展接口。
+
+\subsection{系统调用派发机制与运行流程}
+
+在 Starry-Next 中，系统调用的处理流程体现了清晰的层次划分和高效的调度机制，见流程图 \ref{fig:schedule_flow}。系统启动时，框架完成核心模块初始化并注册系统调用函数表，建立从调用编号到处理函数的映射关系。运行时，用户态请求系统服务时，调用被封装为统一的 syscall 格式，由 src 层接收并进行初步参数校验。
+
+随后，src 层将请求传递至 api 层，api 层依据系统调用号查找对应处理函数，执行前置准备与参数转换，并将调用下发至 core 层。core 层具体执行内核逻辑，如进程调度、内存操作、文件读写或网络数据传输，并返回执行结果。
+
+当系统调用涉及阻塞或等待事件时，core 层会通知调度模块挂起当前任务，切换到其他就绪任务以保证系统整体的响应性和资源利用率。调用完成后，结果沿调用链反向返回至用户态程序，确保调用链的完整性和正确性。
+
+整个流程强调了模块间责任清晰、接口统一和调用高效，兼顾了系统调用的兼容性和性能需求。
+
+\begin{figure}[htbp]
   \centering
-  \caption{三线表示例}
-  \begin{tabular}{cc}
-    \toprule
-    文件名          & 描述                         \\
-    \midrule
-    thuthesis.dtx   & 模板的源文件，包括文档和注释 \\
-    thuthesis.cls   & 模板文件                     \\
-    thuthesis-*.bst & BibTeX 参考文献表样式文件    \\
-    \bottomrule
-  \end{tabular}
-  \label{tab:three-line}
-\end{table}
+  \includegraphics[width=0.8\textwidth]{figures/StarryNext_syscall_flow.pdf}
+  \caption{Starry-Next 系统调用流程图}
+  \label{fig:schedule_flow}
+\end{figure}
 
-若表中有附注，采用英文小写字母顺序编号，附注写在表的下方。
-推荐使用 \pkg{threeparttable} 宏包。
+\subsection{核心模块协作与适配机制}
 
-\begin{table}
-  \centering
-  \begin{threeparttable}[c]
-    \caption{带附注的表格示例}
-    \label{tab:three-part-table}
-    \begin{tabular}{cc}
-      \toprule
-      文件名                 & 描述                         \\
-      \midrule
-      thuthesis.dtx\tnote{a} & 模板的源文件，包括文档和注释 \\
-      thuthesis.cls\tnote{b} & 模板文件                     \\
-      thuthesis-*.bst        & BibTeX 参考文献表样式文件    \\
-      \bottomrule
-    \end{tabular}
-    \begin{tablenotes}
-      \item [a] 可以通过 xelatex 编译生成模板的使用说明文档；
-        使用 xetex 编译 \file{thuthesis.ins} 时则会从 \file{.dtx} 中去除掉文档和注释，得到精简的 \file{.cls} 文件。
-      \item [b] 更新模板时，一定要记得编译生成 \file{.cls} 文件，否则编译论文时载入的依然是旧版的模板。
-    \end{tablenotes}
-  \end{threeparttable}
-\end{table}
+Starry-Next 的宏内核设计不仅依赖于模块划分，更强调模块之间的协同工作和灵活适配。核心模块如任务管理、内存管理和文件系统通过调用 ArceOS 提供的底层接口实现各自职责，保证了内核服务的稳定性和一致性。
 
-如某个表需要转页接排，可以“续表”的形式另页打印，格式同前，只需在每页表序前加“续”字即可。
-续表均应重复表头。
-推荐使用 \pkg{longtable} 宏包。
+任务管理模块通过调用 ArceOS 的 \texttt{axtask} 和 \texttt{axprocess} 组件，负责创建、调度和销毁内核任务与用户进程，支持线程组与会话管理，满足复杂多任务环境需求。内存管理模块基于 \texttt{axmm} 组件，动态维护用户地址空间的映射关系，实现内存权限保护和按需分配，确保多进程内存隔离和高效利用。
 
-\begin{longtable}{cccc}
-    \caption{跨页长表格的表题}
-    \label{tab:longtable} \\
-    \toprule
-    表头 1 & 表头 2 & 表头 3 & 表头 4 \\
-    \midrule
-  \endfirsthead
-    \caption*{续表~\thetable\quad 跨页长表格的表题} \\
-    \toprule
-    表头 1 & 表头 2 & 表头 3 & 表头 4 \\
-    \midrule
-  \endhead
-    \bottomrule
-  \endfoot
-  Row 1  & & & \\
-  Row 2  & & & \\
-  Row 3  & & & \\
-  Row 4  & & & \\
-  Row 5  & & & \\
-  Row 6  & & & \\
-  Row 7  & & & \\
-  Row 8  & & & \\
-  Row 9  & & & \\
-  Row 10 & & & \\
-\end{longtable}
+文件系统模块借助 \texttt{axfs} 接口提供统一的文件访问抽象，支持多文件系统挂载和设备文件管理，简化用户程序对存储资源的访问。网络模块则以抽象的网络设备和协议栈接口为基础，支持多协议栈并存和异步 IO，保障高并发网络服务的稳定运行。
 
+这些核心模块之间通过标准接口和事件机制实现紧密协作：任务模块在进程创建时请求内存分配；文件系统操作中涉及内存缓存管理；网络通信时任务可能进入等待状态，触发调度器切换。模块间的接口设计和依赖关系既保证了功能的完备，也提高了系统的灵活性和可维护性。
 
+通过以上协作机制，Starry-Next 能够在保持宏内核高性能的同时，实现模块化设计带来的灵活定制和跨平台适配，满足复杂多变的应用需求。
 
-\section{算法}
-
-算法环境可以使用 \pkg{algorithms} 或者 \pkg{algorithm2e} 宏包。
-
-\renewcommand{\algorithmicrequire}{\textbf{输入：}\unskip}
-\renewcommand{\algorithmicensure}{\textbf{输出：}\unskip}
-
-\begin{algorithm}
-  \caption{Calculate $y = x^n$}
-  \label{alg1}
-  \small
-  \begin{algorithmic}
-    \REQUIRE $n \geq 0$
-    \ENSURE $y = x^n$
-
-    \STATE $y \leftarrow 1$
-    \STATE $X \leftarrow x$
-    \STATE $N \leftarrow n$
-
-    \WHILE{$N \neq 0$}
-      \IF{$N$ is even}
-        \STATE $X \leftarrow X \times X$
-        \STATE $N \leftarrow N / 2$
-      \ELSE[$N$ is odd]
-        \STATE $y \leftarrow y \times X$
-        \STATE $N \leftarrow N - 1$
-      \ENDIF
-    \ENDWHILE
-  \end{algorithmic}
-\end{algorithm}

@@ -1,0 +1,34 @@
+\section{RQ3：有哪些经验与教训？}
+
+本节总结了我们在本次实证研究中获得的关键经验与教训。
+
+\subsection*{面向 RFL 开发者的经验教训}
+
+为提升 RFL 及其 Rust 驱动的安全性与实用性，开发者可考虑如下建议：
+
+\begin{enumerate}
+  \item \textbf{不要将 Rust 内建的安全检查器视为万能工具}。正如第 \ref{sec:security-analysis} 节所示，Rust 的安全检查器在真实驱动中无法识别某些语义级 bug。因此，建议开发者结合更强大的分析工具（如 RustBelt\cite{86_ralf_jung_rustbelt_2017} 与 miri\cite{54_interpreter_rust_mid_level_2024}）以弥补 Rust 内建机制的不足。
+
+  \item \textbf{从“所有权”视角构建安全的内核抽象，并管理驱动资源}。这与传统内核编程中以“内存”视角出发的方式不同。编程前应先明确结构体间的所有权关系，否则在使用智能指针错误管理所有权后，修复代价将极为高昂。
+
+  \item \textbf{接受 unsafe 作为最后的选项}。Rust 的安全规则在处理内核内存操作时，常需大量使用智能指针与泛型编程，导致内存开销巨大（详见第 \ref{sec:performance-analysis} 节）。此时，如若经过充分审查，可选择使用 unsafe 实现以换取实用性。
+\end{enumerate}
+
+\subsection*{面向 RFL 社区的建议：如何扩展 RFL 的应用范围}
+
+决定将 RFL 优先应用于哪些未来内核驱动或子系统至关重要，因为这需要大量的开发资源与长期维护承诺。为此，我们构建了一个效益模型，用于评估“Rust 化（Rustify）”的优先级。
+
+该效益定义为：某驱动或子系统中可通过 Rust 机制修复的累计 bug/漏洞数量与其代码规模（LoC）的比值。直观理解是：一个规模较小但含有大量内存/线程类 bug 的子系统，其 Rust 化的价值更高。这一思路已得到社区共识的支持\cite{35_rfl_driver_selection_2023}。
+
+为量化上述指标，我们遍历了各驱动的 git 历史，收集其至今出现的所有安全问题，并手动审查其中已修复的 bug，筛选出那些可通过 Rust 安全机制避免的内存/线程类 bug（依据第 \ref{sec:rust-safety-mechanism} 节定义）。我们共分析了来自 79 个不同子系统的 2500 多个驱动，并将分析结果绘制于图~\ref{fig:subsystem-priority}。
+
+平均而言，每个子系统包含 1.3 个 bug/每千行代码；但在不同子系统间，该比值差异显著。其中，\texttt{linux-block} 子系统由于每行代码含最多 bug（共 438 个修复中包括 113 个数据竞争 bug 与 98 个悬垂指针 bug），因此被我们建议优先 Rust 化。令人欣喜的是，该子系统的 \texttt{null block} 驱动已经被社区用 RFL 重写，并在第 \ref{sec:performance-analysis} 节进行了测试验证。
+
+除 \texttt{linux-block} 外，我们的结果还表明 \texttt{linux-ext4} 子系统也具有较高的 Rust 化优先级。鉴于 VFS 安全抽象已被提出\cite{56_rfl_vfs_safety_2024}，且已有多个基于 Rust 的文件系统实现\cite{32_puzzlefs_buiild_vfs_2023,36_tarfs_buiild_vfs_2023}，我们预期 RFL 接下来的扩展将集中在 \texttt{ext4} 文件子系统上，并期待它能有效提升内存/线程安全保障能力。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{subsystem_analysis.jpg}
+  \caption{Linux 子系统分析结果。每个点代表一个子系统，点的大小表示其代码体量，相对颜色表示其 Rust 化的紧迫程度（蓝色：最紧迫，红色：最不紧迫）}
+  \label{fig:subsystem-priority}
+\end{figure}

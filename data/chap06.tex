@@ -1,0 +1,90 @@
+\chapter{遇到的问题与解决方案}
+
+\section{网络协议栈适配中的兼容性问题}
+
+在 ArceOS 中实现 lwIP 和 smoltcp 两款轻量级网络协议栈时，兼容性问题是我们面临的主要挑战之一。由于这两款协议栈在功能实现和内存管理上的差异，如何使其能够无缝集成到 ArceOS 中，并与其他模块（如进程管理和内存管理）顺利协作，是设计过程中必须解决的问题。网络协议栈的高效运行对操作系统的性能至关重要，因此在集成过程中我们需要特别关注内存管理、数据包缓冲区、连接管理等多个方面。
+
+\textbf{lwIP 协议栈的内存管理适配} \par
+
+lwIP 协议栈原本设计为嵌入式系统中的高效网络协议栈，但其内存管理机制与 ArceOS 的内存管理系统存在差异。lwIP 使用了自有的内存池管理方式，而 ArceOS 则采用了基于页表的虚拟内存管理机制。为了确保 lwIP 在 ArceOS 中的高效运行，我们需要对其内存池管理和数据包缓冲区的使用进行定制化调整。
+
+具体来说，lwIP 需要更多地与 ArceOS 的内存分配系统进行整合，以减少内存碎片，保证数据传输的稳定性和高效性。在高并发场景下，lwIP 的内存管理机制往往会导致内存分配过于分散，进而影响网络传输性能。为了弥补这一点，我们对 lwIP 进行了内存池的优化，使得内存池能够与 ArceOS 的内存管理机制进行更紧密的对接，避免了内存碎片化的发生，并提升了数据包传输的稳定性。
+
+\textbf{协议栈选择与切换机制} \par
+
+为了提供灵活的网络配置，ArceOS 允许用户选择在 lwIP 和 smoltcp 之间切换。尽管这为 ArceOS 提供了更大的灵活性，但也带来了一些适配问题。最显著的问题是协议栈切换时，如何保持正在进行的网络连接不中断，如何管理两个协议栈间的内存资源共享，成为了必须解决的挑战。
+
+为了简化这一过程，我们设计了一个统一的网络接口层，能够根据系统配置动态加载和切换协议栈。通过这种设计，用户只需要配置协议栈的选择，系统会自动管理内存资源的分配，并确保协议栈切换时不会影响正在进行的网络通信。这个机制大大减少了手动切换和配置的复杂性，并简化了用户的操作流程。
+
+\section{网络功能的测试问题}
+
+在网络功能测试的过程中，我们不仅验证了各个系统调用的基础行为，还在实际测试中遇到了一些实现层面的复杂问题，下面列举了若干具有代表性的问题及其分析过程。
+
+\textbf{accept 函数在非阻塞连接下的异常行为} \par
+
+在测试非阻塞套接字时，我们发现客户端使用 \texttt{SOCK\_NONBLOCK} 进行连接请求后，服务端调用 \texttt{accept} 可能无法及时返回连接结果，导致程序长时间阻塞或误判连接失败。问题的根源在于 \texttt{connect} 调用返回 \texttt{EINPROGRESS} 时，服务端的监听状态未能同步更新，accept 队列未能及时插入新连接。我们通过引入状态轮询机制以及改进连接完成的通知流程，成功解决了该问题，使非阻塞连接的建立更加稳定。
+
+\textbf{getsockname 返回信息异常} \par
+
+在对 \texttt{getsockname} 系统调用进行测试时，发现部分情况下返回的地址信息中端口号为 0。经过排查，发现该问题出现在未显式指定端口号进行 \texttt{bind} 的场景下，系统未能为套接字自动分配可用端口。我们通过调整 bind 的实现逻辑，确保在端口为 0 的情况下内核自动分配可用端口，并正确更新地址结构，最终使 \texttt{getsockname} 能够返回完整的本地地址信息。
+
+\textbf{socket 标志位未生效问题} \par
+
+在测试 \texttt{SOCK\_CLOEXEC} 与 \texttt{SOCK\_NONBLOCK} 标志时，通过 \texttt{fcntl} 检查文件描述符状态，发现部分系统调用返回的 socket 未设置对应标志位。这是由于套接字创建与文件描述符标志设置之间未正确衔接所致。我们通过在 socket 创建路径中统一添加标志传递与设定逻辑，确保在 \texttt{socket} 或 \texttt{accept4} 创建套接字时，相关标志能准确反映在描述符状态中。
+
+\textbf{recvfrom 接收数据异常} \par
+
+在 UDP 通信测试中，虽然 \texttt{recvfrom} 调用返回值为 1，表示成功接收到一个字节数据，但在验证数据内容时发现 buffer 中内容为空或被破坏。进一步排查发现问题出现在缓冲区未正确初始化或长度未设置的问题上。我们通过加强缓冲区管理逻辑、初始化结构体内容，并在 \texttt{recvfrom} 前明确指定 \texttt{socklen\_t} 长度字段，确保数据能准确写入并被用户程序读取。
+
+这些问题的解决为网络子系统功能测试的稳定性提供了保障，也进一步暴露了不同系统调用之间在实现逻辑上的紧密依赖关系，为我们后续进行系统级测试提供了宝贵经验。
+
+\section{网络模块的相关代码在开发中的问题}
+
+在开发过程中，遇到了以下几个实际问题，并通过以下方式解决：
+
+\subsection{recvfrom 函数问题}
+
+在开发过程中，发现 \texttt{recvfrom} 函数未能在 \texttt{socket\_set} 中找到非阻塞的套接字（nonblocking socket）。此问题的根本原因在于 \texttt{socket} 的 \texttt{canrecv()} 方法总是返回 false，导致套接字的接收缓冲区（rxbuffer）始终为空。我们进一步调查发现，这与 UDP 套接字在创建时没有正确实现回环（loopback）机制有关，更加具体直观的错误情况如图6.1所示。解决方法是为 UDP 套接字添加回环支持，确保即使在没有数据的情况下，接收操作能够顺利完成。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.4\textwidth]{figures/recvfrom_issue.pdf}
+    \caption{recvfrom 函数未能找到非阻塞套接字的问题示意图}
+    \label{fig:recvfrom_issue}
+\end{figure}
+
+\subsection{sendto 问题}
+
+在进行 \texttt{sendto} 系统调用的开发和测试时，我们遇到了 \texttt{self\_addr\_load failed} 的错误。通过检查代码，我们发现这个问题是由于 \texttt{self\_addr} 为空引起的。根据分析，ArceOS 中的 \texttt{sendto} 调用是依赖于 \texttt{socket\_self\_addr} 是否存在的，但对于未显式绑定的套接字，系统应自动分配本地地址，更加具体直观的错误情况如图6.2所示。我们通过修改代码，使得在没有绑定操作的情况下，系统自动为 UDP 套接字绑定 \texttt{0.0.0.0:0}，从而解决了这个问题。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figures/sendto_issue.pdf}
+    \caption{sendto 系统调用中 self\_addr 为空的问题示意图}
+    \label{fig:sendto_issue}
+\end{figure}
+
+\subsection{setsockopt 问题}
+
+在调试过程中，我们发现 \texttt{setsockopt} 系统调用在 ArceOS 中未能正确工作，更加具体直观的错误情况如图6.3所示。为了解决这一问题，我们查看了其他操作系统的实现，并参考了星绽OS和 DragonOS 的处理方式，选择在 \texttt{setsockopt} 调用中进行伪实现，直接返回 \texttt{Ok(0)}。然而，这种做法仅适用于开发阶段，在生产环境中需要进一步的实现和优化。我们计划在后续版本中完善这一功能，并确保 \texttt{setsockopt} 可以支持更多选项。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.3\textwidth]{figures/setsockopt_issue.pdf}
+    \caption{setsockopt 系统调用未正确工作的示意图}
+    \label{fig:setsockopt_issue}
+\end{figure}
+
+\subsection{iperf 测试中的 IPv6 支持问题}
+
+在使用 \texttt{iperf} 工具对 ArceOS 网络子系统进行性能测试时，遇到了 IPv6 协议栈支持不足的问题。由于 \texttt{iperf} 默认会尝试初始化 IPv6 套接字（即 \texttt{AF\_INET6}），并构造 28 字节的 \texttt{sockaddr\_in6} 地址结构用于 TCP 建连测试，这与当前系统只支持 IPv4（16 字节 \texttt{sockaddr\_in}）的实现产生了不兼容。
+
+具体地，当 \texttt{iperf} 调用 \texttt{socket(AF\_INET6, SOCK\_STREAM, 0)} 初始化 TCP 套接字时，系统返回 \texttt{EINVAL} 错误，提示地址族不支持。进一步追踪发现，当前 ArceOS 的 \texttt{socket} 系统调用仅对 \texttt{AF\_INET} 进行了路径实现，未包含对 \texttt{AF\_INET6} 的任何处理逻辑。此外，与之关联的 \texttt{bind}、\texttt{connect}、\texttt{recvfrom} 等调用中，对 \texttt{sockaddr\_in6} 类型的字段解析也未做适配，从而导致一系列错误发生。
+
+为了解决该问题，我们从以下几个方面入手：
+
+\begin{itemize}
+  \item \textbf{添加 IPv6 地址族支持}：扩展 \texttt{socket} 系统调用，使其识别 \texttt{AF\_INET6} 类型，并在内部建立相应的套接字类型（如 \texttt{SocketDomain::Inet6}）。
+  \item \textbf{实现 \texttt{sockaddr\_in6} 的解析逻辑}：在 \texttt{bind} 和 \texttt{connect} 中增加对 28 字节 IPv6 地址结构的解析支持，包括 \texttt{sin6\_addr}（16 字节 IPv6 地址）、\texttt{sin6\_port} 和 \texttt{sin6\_scope\_id} 等字段的正确处理。
+  \item \textbf{未来改进方向}：尽管上述修改使 \texttt{iperf} 在测试中能够继续工作，但 IPv6 支持仍需系统性地增强，包括支持多播地址、链路本地地址、ICMPv6 报文以及 Neighbor Discovery 等协议。我们计划在后续版本中完成完整的 IPv6 协议栈集成，以支持更广泛的网络测试场景。
+\end{itemize}

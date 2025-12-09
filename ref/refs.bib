@@ -1,335 +1,862 @@
-@article{zhangkun1994,
-  author     = {张昆 and 冯立群 and 余昌钰 and others},
-  title      = {机器人柔性手腕的球面齿轮设计研究},
-  journal    = {清华大学学报: 自然科学版},
-  volume     = {34},
-  number     = {2},
-  pages      = {1--7},
-  year       = {1994},
-  key        = {zhang1 kun1},
+@inproceedings{fassino2002think,
+  author    = {Fassino, J. and Stefani, J. and Lawall, J. L. and others},
+  title     = {Think: A software framework for component-based operating system kernels},
+  booktitle = {Proceedings of the General Track: 2002 USENIX Annual Technical Conference},
+  year      = {2002},
+  pages     = {73--86},
+  publisher = {USENIX},
+  url       = {http://www.usenix.org/publications/library/proceedings/usenix02/fassino.html}
 }
 
-@book{zhukezhen1973,
-  author     = {竺可桢},
-  title      = {物理学论},
-  address    = {北京},
-  publisher  = {科学出版社},
-  year       = {1973},
-  pages      = {56--60},
-  key        = {zhu2 ke3 zhen1},
+@article{gu2024brickos,
+  author    = {古金宇 and 李浩 and 夏虞斌 and 等},
+  title     = {BrickOS: 面向异构硬件资源的积木式内核},
+  journal   = {中国科学（信息科学）},
+  volume    = {54},
+  number    = {3},
+  pages     = {491--513},
+  year      = {2024}
 }
 
-@inproceedings{dupont1974bone,
-  author     = {Dupont, B},
-  title      = {Bone marrow transplantation in severe combined immunodeficiency with an unrelated MLC compatible donor},
-  editor     = {White, H J and Smith, R},
-  booktitle  = {Proceedings of the third annual meeting of the International Society for Experimental Hematology},
-  address    = {Houston},
-  publisher  = {International Society for Experimental Hematology},
+@inproceedings{Ammons2007Libra,
+  author    = {Ammons, Glenn and Appavoo, Jonathan and Butrico, Maria and Da Silva, Dilma and Grove, David and Kawachiya, Kiyokuni and Krieger, Orran and Rosenburg, Bryan and Van Hensbergen, Eric and Wisniewski, Robert W.},
+  title     = {Libra: a library operating system for a jvm in a virtualized execution environment},
+  year      = {2007},
+  isbn      = {9781595936301},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  url       = {https://doi.org/10.1145/1254810.1254817},
+  doi       = {10.1145/1254810.1254817},
+  abstract  = {If the operating system could be specialized for every application, many applications would run faster. For example, Java virtual machines (JVMs) provide their own threading model and memory protection, so general-purpose operating system implementations of these abstractions are redundant. However, traditional means of transforming existing systems into specialized systems are difficult to adopt because they require replacing the entire operating system. This paper describes Libra, an execution environment specialized for IBM's J9 JVM. Libra does not replace the entire operating system. Instead, Libra and J9 form a single statically-linked image that runs in a hypervisor partition. Libra provides the services necessary to achieve good performance for the Java workloads of interest but relies on an instance of Linux in another hypervisor partition to provide a networking stack, a filesystem, and other services. The expense of remote calls is offset by the fact that Libra's services can be customized for a particular workload; for example, on the Nutch search engine, we show that two simple customizations improve application throughput by a factor of 2.7.},
+  booktitle = {Proceedings of the 3rd International Conference on Virtual Execution Environments},
+  pages     = {44–54},
+  numpages  = {11},
+  keywords  = {JVM, exokernels, virtualization, xen},
+  location  = {San Diego, California, USA},
+  series    = {VEE '07}
+}
+
+@article{Peter2015Arrakis,
+  author     = {Peter, Simon and Li, Jialin and Zhang, Irene and Ports, Dan R. K. and Woos, Doug and Krishnamurthy, Arvind and Anderson, Thomas and Roscoe, Timothy},
+  title      = {Arrakis: The Operating System Is the Control Plane},
+  year       = {2015},
+  issue_date = {January 2016},
+  publisher  = {Association for Computing Machinery},
+  address    = {New York, NY, USA},
+  volume     = {33},
+  number     = {4},
+  issn       = {0734-2071},
+  url        = {https://doi.org/10.1145/2812806},
+  doi        = {10.1145/2812806},
+  abstract   = {Recent device hardware trends enable a new approach to the design of network server operating systems. In a traditional operating system, the kernel mediates access to device hardware by server applications to enforce process isolation as well as network and disk security. We have designed and implemented a new operating system, Arrakis, that splits the traditional role of the kernel in two. Applications have direct access to virtualized I/O devices, allowing most I/O operations to skip the kernel entirely, while the kernel is re-engineered to provide network and disk protection without kernel mediation of every operation. We describe the hardware and software changes needed to take advantage of this new abstraction, and we illustrate its power by showing improvements of 2 to 5 \texttimes{} in latency and 9 \texttimes{} throughput for a popular persistent NoSQL store relative to a well-tuned Linux implementation.},
+  journal    = {ACM Trans. Comput. Syst.},
+  month      = nov,
+  articleno  = {11},
+  numpages   = {30},
+  keywords   = {I/O virtualization, Kernel bypass, SR-IOV}
+}
+
+@article{Black1991Microkernel,
+  title     = {Microkernel operating system architecture and Mach},
+  abstract  = {Modular architectures based on a microkernel are suitable bases for the design and implementation of operating systems. Prototype systems employing microkernel architectures are achieving the levels of functionality and performance expected and required of commercial products. Researchers at Carnegie Mellon University, the Open Software Foundation, and other sites are investigating implementations of a number of operating systems (e.g., Unix, MS-DOS) that use the Mach microkernel. This paper describes the Mach microkernel, its use to support implementations of other operating systems, and the status of these efforts.},
+  author    = {David Black and Golub, {David B.} and Julin, {Daniel P.} and Rashid, {Richard F.} and Draves, {Richard P.} and Dean, {Randall W.} and Alessandro Forin and Joseph Barrera and Hideyuki Tokuda and Malan, {Gerald R.} and David Bohman},
+  year      = {1991},
+  month     = dec,
+  day       = {1},
+  language  = {English},
+  volume    = {14},
+  pages     = {442--453},
+  journal   = {Journal of information processing},
+  issn      = {0387-6101},
+  publisher = {Information Processing Society of Japan},
+  number    = {4},
+  note      = {3rd Computer System Symposium ; Conference date: 26-03-1991 Through 27-03-1991}
+}
+
+@inproceedings{Madhayapeddy2013Unikernels,
+  author    = {Madhavapeddy, Anil and Mortier, Richard and Rotsos, Charalampos and Scott, David and Singh, Balraj and Gazagnaire, Thomas and Smith, Steven and Hand, Steven and Crowcroft, Jon},
+  title     = {Unikernels: library operating systems for the cloud},
+  year      = {2013},
+  isbn      = {9781450318709},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  url       = {https://doi.org/10.1145/2451116.2451167},
+  doi       = {10.1145/2451116.2451167},
+  abstract  = {We present unikernels, a new approach to deploying cloud services via applications written in high-level source code. Unikernels are single-purpose appliances that are compile-time specialised into standalone kernels, and sealed against modification when deployed to a cloud platform. In return they offer significant reduction in image sizes, improved efficiency and security, and should reduce operational costs. Our Mirage prototype compiles OCaml code into unikernels that run on commodity clouds and offer an order of magnitude reduction in code size without significant performance penalty. The architecture combines static type-safety with a single address-space layout that can be made immutable via a hypervisor extension. Mirage contributes a suite of type-safe protocol libraries, and our results demonstrate that the hypervisor is a platform that overcomes the hardware compatibility issues that have made past library operating systems impractical to deploy in the real-world.},
+  booktitle = {Proceedings of the Eighteenth International Conference on Architectural Support for Programming Languages and Operating Systems},
+  pages     = {461–472},
+  numpages  = {12},
+  keywords  = {microkernel, hypervisor, functional programming},
+  location  = {Houston, Texas, USA},
+  series    = {ASPLOS '13}
+}
+
+@article{Popek1974Virtualization,
+  author     = {Popek, Gerald J. and Goldberg, Robert P.},
+  title      = {Formal requirements for virtualizable third generation architectures},
   year       = {1974},
-  pages      = {44--46},
+  issue_date = {July 1974},
+  publisher  = {Association for Computing Machinery},
+  address    = {New York, NY, USA},
+  volume     = {17},
+  number     = {7},
+  issn       = {0001-0782},
+  url        = {https://doi.org/10.1145/361011.361073},
+  doi        = {10.1145/361011.361073},
+  abstract   = {Virtual machine systems have been implemented on a limited number of third generation computer systems, e.g. CP-67 on the IBM 360/67. From previous empirical studies, it is known that certain third generation computer systems, e.g. the DEC PDP-10, cannot support a virtual machine system. In this paper, model of a third-generation-like computer system is developed. Formal techniques are used to derive precise sufficient conditions to test whether such an architecture can support virtual machines.},
+  journal    = {Commun. ACM},
+  month      = jul,
+  pages      = {412–421},
+  numpages   = {10},
+  keywords   = {virtual memory, virtual machine monitor, virtual machine, third generation architecture, sensitive instruction, proof, operating system, hypervisor, formal requirements, abstract model}
 }
 
-@mastersthesis{zhengkaiqing1987,
-  author     = {郑开青},
-  title      = {通讯系统模拟及软件},
-  address    = {北京},
-  school     = {清华大学无线电系},
-  year       = {1987},
-  key        = {zheng4 kai1 qing1},
+@inproceedings{Abdalkarim2022Hybrid,
+  author    = {Abdalkarim, B. A. and Akeun, D.},
+  title     = {Analysis of hybrid kernel-based operating systems},
+  booktitle = {Proceedings of a relevant conference},
+  year      = {2022}
+}
+@inproceedings{Baumann2009Multikernel,
+  author    = {Baumann, Andrew and Barham, Paul and Dagand, Pierre-Evariste and Harris, Tim and Isaacs, Rebecca and Peter, Simon and Roscoe, Timothy and Sch\"{u}pbach, Adrian and Singhania, Akhilesh},
+  title     = {The multikernel: a new OS architecture for scalable multicore systems},
+  year      = {2009},
+  isbn      = {9781605587523},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  url       = {https://doi.org/10.1145/1629575.1629579},
+  doi       = {10.1145/1629575.1629579},
+  abstract  = {Commodity computer systems contain more and more processor cores and exhibit increasingly diverse architectural tradeoffs, including memory hierarchies, interconnects, instruction sets and variants, and IO configurations. Previous high-performance computing systems have scaled in specific cases, but the dynamic nature of modern client and server workloads, coupled with the impossibility of statically optimizing an OS for all workloads and hardware variants pose serious challenges for operating system structures.We argue that the challenge of future multicore hardware is best met by embracing the networked nature of the machine, rethinking OS architecture using ideas from distributed systems. We investigate a new OS structure, the multikernel, that treats the machine as a network of independent cores, assumes no inter-core sharing at the lowest level, and moves traditional OS functionality to a distributed system of processes that communicate via message-passing.We have implemented a multikernel OS to show that the approach is promising, and we describe how traditional scalability problems for operating systems (such as memory management) can be effectively recast using messages and can exploit insights from distributed systems and networking. An evaluation of our prototype on multicore systems shows that, even on present-day machines, the performance of a multikernel is comparable with a conventional OS, and can scale better to support future hardware.},
+  booktitle = {Proceedings of the ACM SIGOPS 22nd Symposium on Operating Systems Principles},
+  pages     = {29–44},
+  numpages  = {16},
+  keywords  = {scalability, multicore processors, message passing},
+  location  = {Big Sky, Montana, USA},
+  series    = {SOSP '09}
+}
+@inproceedings{Engler1995Exokernel,
+  author    = {Engler, D. R. and Kaashoek, M. F. and O'Toole, J.},
+  title     = {Exokernel: an operating system architecture for application-level resource management},
+  year      = {1995},
+  isbn      = {0897917154},
+  publisher = {Association for Computing Machinery},
+  address   = {New York, NY, USA},
+  url       = {https://doi.org/10.1145/224056.224076},
+  doi       = {10.1145/224056.224076},
+  booktitle = {Proceedings of the Fifteenth ACM Symposium on Operating Systems Principles},
+  pages     = {251–266},
+  numpages  = {16},
+  location  = {Copper Mountain, Colorado, USA},
+  series    = {SOSP '95}
 }
 
-@patent{jiangxizhou1980,
-  author     = {姜锡洲},
-  title      = {一种温热外敷药制备方案},
-  address    = {中国},
-  number     = {88105607.3},
-  year       = {1980},
-  date       = {1980-07-26},
-  key        = {jiang1 xi1 zhou1},
+@misc{1_static_code_analysis_coverity_2006,
+  title        = {The static code analysis tool coverity scan results for Linux},
+  howpublished = {\url{https://scan.coverity.com/projects/linux}},
+  year         = {2006}
 }
 
-@standard{jianduju1994,
-  author     = {中华人民共和国国家技术监督局},
-  title      = {GB3100-3102. 中华人民共和国国家标准-量与单位},
-  address    = {北京},
-  publisher  = {中国标准出版社},
-  year       = {1994},
-  key        = {zhong1 hua2 ren2 min2 gong4 he2 guo2},
+@misc{2_carla_schroder_missing_2009,
+  title        = {Missing docuement is the \#1 bug in the Linux},
+  howpublished = {\url{https://www.linuxtoday.com/blog/linux-bug-1-bad-documentation/}},
+  year         = {2009}
 }
 
-@article{merkt1995rotational,
-  author     = {Merkt, Fr{\'e}d{\'e}ric and Mackenzie, S R and Softley, Timothy P},
-  title      = {Rotational Autoionization Dynamics in High Rydberg States of Nitrogen},
-  journal    = {J Chem Phys},
-  year       = {1995},
-  volume     = {103},
-  pages      = {4509--4518},
+@misc{3_minimal_linux_kernel_2013,
+  title        = {A minimal Linux kernel module written in rust},
+  howpublished = {\url{https://github.com/tsgates/rust.ko}},
+  year         = {2013}
 }
 
-@article{mellinger1996laser,
-  author     = {Mellinger, A and Vidal, C R and Jungen, {Ch}},
-  title      = {Laser reduced fluorescence study of the carbon monoxide nd triplet Rydberg series - Experimental results and multichannel quantum defect analysis},
-  journal    = {J Chem Phys},
-  year       = {1996},
-  volume     = {104},
-  pages      = {8913--8921},
+@misc{4_linus_explained_docuementation_2015,
+  title        = {Linus explained the docuementation missing problem},
+  howpublished = {\url{https://www.youtube.com/watch?v=bAop_8l6_cI&t=2275s}},
+  year         = {2015}
 }
 
-@article{bixon1996dynamics,
-  author     = {Bixon, M and Jortner, Joshua},
-  title      = {The dynamics of predissociating high {Rydberg} states of {NO}},
-  journal    = {J Chem Phys},
-  year       = {1996},
-  volume     = {105},
-  pages      = {1363--1382},
+@misc{5_redox_unix_like_2015,
+  title        = {Redox is a Unix-like Operating System written in Rust},
+  howpublished = {\url{https://gitlab.redox-os.org/redox-os/redox/}},
+  year         = {2015}
 }
 
-@article{mahui1995,
-  author     = {马辉 and 李俭 and 刘耀明 and others},
-  title      = {利用 {REMPI} 方法测量 {BaF} 高里德堡系列光谱},
-  journal    = {化学物理学报},
-  year       = {1995},
-  volume     = {8},
-  pages      = {308--311},
-  key        = {ma3 hui1},
+@misc{6_tikv_transactional_key_2016,
+  title        = {TiKV is an open-source, distributed, and transactional key-value database written in Rust},
+  howpublished = {\url{https://github.com/tikv/tikv}},
+  year         = {2016}
 }
 
-@article{carlson1981two,
-  author     = {Carlson, N W and Taylor, A J and Jones, K M and Schawlow, A L},
-  title      = {Two-step polarization-labeling spectroscopy of excited states of {Na2}},
-  journal    = {Phys Rev A},
-  year       = {1981},
-  volume     = {24},
-  pages      = {822--834},
+@misc{7_bindgen_does_not_2019,
+  title        = {Bindgen does not handle packed and aligned right},
+  howpublished = {\url{https://github.com/rust-lang/rust-bindgen/issues/1538}},
+  year         = {2019}
 }
 
-@article{taylor1983scanning,
-  author     = {Taylor, A J and Jones, K M and Schawlow, A L},
-  title      = {Scanning pulsed-polarization spectrometer applied to {Na2}},
-  journal    = {J Opt Soc Am},
-  year       = {1983},
-  volume     = {73},
-  pages      = {994--998},
+@misc{8_writing_linux_kernel_2019,
+  title        = {Why writing Linux Kernel Modules in Safe Rust},
+  howpublished = {\url{https://www.youtube.com/watch?v=RyY01fRyGhM}},
+  year         = {2019}
 }
 
-@article{taylor1981study,
-  author     = {Taylor, A J and Jones, K M and Schawlow, A L},
-  title      = {A study of the excited {1$\Sigma$g+} states in {Na2}},
-  journal    = {Opt Commun},
-  year       = {1981},
-  volume     = {39},
-  pages      = {47--50},
+@misc{9_bindgen_mishandles_aligned_2020,
+  title        = {Bindgen mishandles aligned typedefs},
+  howpublished = {\url{https://github.com/rust-lang/rust-bindgen/issues/1753}},
+  year         = {2020}
 }
 
-@article{shimizu1983laser,
-  author     = {Shimizu, Kazuko and Shimizu, Fujio},
-  title      = {Laser induced fluorescence spectra of the a {3$\Pi$u--X 1$\Sigma$g+} band of {Na2} by molecular beam},
-  journal    = {J Chem Phys},
-  year       = {1983},
-  volume     = {78},
-  pages      = {1126--1131},
+@misc{10_barriers_in_tree_2020,
+  title        = {The Barriers to in-tree Rust talk in LPC 2020 LLVM MC},
+  howpublished = {\url{https://lpc.events/event/7/contributions/804/}},
+  year         = {2020}
 }
 
-@article{atkinson1982experimental,
-  author     = {Atkinson, J B and Becker, J and Demtr{\"o}der, W},
-  title      = {Experimental observation of the a {3$\Pi$u} state of {Na2}},
-  journal    = {Chem Phys Lett},
-  year       = {1982},
-  volume     = {87},
-  pages      = {92--97},
+@misc{11_linux_kernel_modules_2021,
+  title        = {Linux kernel modules in safe Rust},
+  howpublished = {\url{https://github.com/fishinabarrel/linux-kernelmodule-rust}},
+  year         = {2021}
 }
 
-@article{kusch1975perturbations,
-  author     = {Kusch, P and Hessel, M M},
-  title      = {Perturbations in the A {1$\Sigma$u+} state of {Na2}},
-  journal    = {J Chem Phys},
-  year       = {1975},
-  volume     = {63},
-  pages      = {4087--4088},
+@misc{12_safe_initialization_pinned_2021,
+  title        = {The issue of "Safe initialization of pinned structs" in github},
+  howpublished = {\url{https://github.com/Rust-for-Linux/linux/issues/290}},
+  year         = {2021}
 }
 
-@book{guangxi1993,
-  author     = {广西壮族自治区林业厅},
-  title      = {广西自然保护区},
-  address    = {北京},
-  publisher  = {中国林业出版社},
-  year       = {1993},
-  key        = {guang3 xi1 zhuang4 zu2 zi4 zhi4 qu1},
+@misc{13_rfc_maillist_rust_2021,
+  title        = {The RFC in the maillist for Rust support},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/20210414184604.23473-1-ojeda@kernel.org/}},
+  year         = {2021}
 }
 
-@book{huosini1989guwu,
-  author     = {霍斯尼},
-  title      = {谷物科学与工艺学原理},
-  translator = {李庆龙},
-  edition    = {2},
-  address    = {北京},
-  publisher  = {中国食品出版社},
-  year       = {1989},
-  pages      = {15--20},
-  key        = {huo4 si1 ni2},
+@misc{14_rust_for_linux_2021,
+  title        = {The Rust-for-Linux official presentation in the Rust Meetup Linz},
+  howpublished = {\url{https://www.youtube.com/watch?v=fVEeqo40IyQ}},
+  year         = {2021}
 }
 
-@book{wangfuzhi1865songlun,
-  author     = {王夫之},
-  title      = {宋论},
-  edition    = {刻本},
-  address    = {金陵},
-  publisher  = {曾氏},
-  year       = {1865（清同治四年）},
-  key        = {wang2 fu1 zhi1},
+@misc{15_linux_cve_caused_2022,
+  title        = {A Linux CVE caused by data race},
+  howpublished = {\url{https://www.cvedetails.com/cve/CVE-2022-3566/}},
+  year         = {2022}
 }
 
-@book{zhaoyaodong1998xinshidai,
-  author     = {赵耀东},
-  title      = {新时代的工业工程师},
-  address    = {台北},
-  publisher  = {天下文化出版社},
-  year       = {1998},
-  urldate    = {1998-09-26},
-  url        = {http://www.ie.nthu.edu.tw/info/ie.newie.htm},
-  key        = {zhao4 yao4 dong1},
+@misc{16_linux_cve_caused_2022,
+  title        = {A Linux CVE caused by incorrect type casting},
+  howpublished = {\url{https://www.cvedetails.com/cve/CVE-2018-5861}},
+  year         = {2022}
 }
 
-@standard{biaozhunhua2002tushu,
-  author     = {全国信息与文献工作标准化技术委员会出版物格式分委员会},
-  title      = {GB/T 12450-2001 图书书名页},
-  address    = {北京},
-  publisher  = {中国标准出版社},
-  year       = {2002},
-  pages      = {1},
-  key        = {quan2 guo2 xin4 xi1},
+@misc{17_rfl_bug_misconfig_2022,
+  title        = {A RFL bug due to the misconfig of Kbuild},
+  howpublished = {\url{https://github.com/Rust-for-Linux/linux/issues/735}},
+  year         = {2022}
 }
 
-@book{chubanzhuanye2004,
-  author     = {全国出版专业职业资格考试办公室},
-  title      = {全国出版专业职业资格考试辅导教材: 出版专业理论与实务•中级},
-  edition    = {2014},
-  address    = {上海},
-  publisher  = {上海辞书出版社},
-  year       = {2004},
-  pages      = {299--307},
-  key        = {quan2 guo2 chu1 ban3 ye4},
+@misc{18_rfl_driver_bug_2022,
+  title        = {A RFL driver bug report: potential sleep-in-atomic-context},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/87r0ykny6w.fsf@wdc.com/T/#t}},
+  year         = {2022}
 }
 
-@techreport{who1970factors,
-  author     = {{World Health Organization}},
-  title      = {Factors Regulating the Immune Response: Report of {WHO Scientific Group}},
-  address    = {Geneva},
-  publisher  = {WHO},
-  year       = {1970},
+@misc{19_kmsan_dynamic_error_2022,
+  title        = {KMSAN is a dynamic error detector aimed at finding uses of uninitialized values},
+  howpublished = {\url{https://docs.kernel.org/dev-tools/kmsan.html}},
+  year         = {2022}
 }
 
-@book{peebles2001probability,
-  author     = {Peebles, Jr, Peyton Z.},
-  title      = {Probability, Random Variables, and Random Signal Principles},
-  edition    = {4},
-  address    = {New York},
-  publisher  = {McGraw Hill},
-  year       = {2001},
+@misc{20_linux_merges_rust_2022,
+  title        = {Linux merges Rust into the mainline},
+  howpublished = {\url{https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=8aebac82933ff1a7c8eede18cab11e1115e2062b}},
+  year         = {2022}
 }
 
-@incollection{baishunong1998zhiwu,
-  author     = {白书农},
-  title      = {植物开花研究},
-  editor     = {李承森},
-  booktitle  = {植物科学进展},
-  address    = {北京},
-  publisher  = {高等教育出版社},
-  year       = {1998},
-  pages      = {146--163},
-  key        = {bai2 shu1 nong2},
+@misc{21_rfl_discards_btf_2022,
+  title        = {RFL discards BTF\_TYPE\_TAG attribute},
+  howpublished = {\url{https://github.com/rust-lang/rust-bindgen/issues/2244}},
+  year         = {2022}
 }
 
-@incollection{weinstein1974pathogenic,
-  author     = {Weinstein, L and Swertz, M N},
-  title      = {Pathogenic Properties of Invading Microorganism},
-  editor     = {Sodeman, Jr, William A and Sodeman, William A},
-  booktitle  = {Pathologic physiology: mechanisms of disease},
-  address    = {Philadelphia},
-  publisher  = {Saunders},
-  year       = {1974},
-  pages      = {745--772},
+@misc{22_rust_for_linux_2022,
+  title        = {The Rust-for-Linux project helping write drivers in Linux},
+  howpublished = {\url{https://github.com/Rust-for-Linux/linux/}},
+  year         = {2022}
 }
 
-@inproceedings{hanjiren1985lun,
-  author     = {韩吉人},
-  title      = {论职工教育的特点},
-  editor     = {中国职工教育研究会},
-  booktitle  = {职工教育研究论文集},
-  address    = {北京},
-  publisher  = {人民教育出版社},
-  year       = {1985},
-  pages      = {90--99},
-  key        = {han2 ji2 ren2},
+@misc{23_linux_cve_caused_2023,
+  title        = {A Linux CVE caused by oob bugs},
+  howpublished = {\url{https://www.cvedetails.com/cve/CVE-2023-38429/}},
+  year         = {2023}
 }
 
-@periodical{dizhi1936dizhi,
-  author     = {中国地质学会},
-  title      = {地质评论},
-  year       = {1936},
-  volume     = {1},
-  number     = {1},
-  address    = {北京},
-  publisher  = {地质出版社},
-  key        = {zhong1 guo2 di4 zhi3 xue2 hui4},
+@misc{24_linux_cve_caused_2023,
+  title        = {A Linux CVE caused by use-after-free},
+  howpublished = {\url{https://www.cvedetails.com/cve/CVE-2023-33288/}},
+  year         = {2023}
 }
 
-@periodical{tushuguan1957tushuguanxue,
-  author     = {中国图书馆学会},
-  title      = {图书馆学通讯},
-  year       = {1957/1990},
-  number     = {1--4},
-  address    = {北京},
-  publisher  = {北京图书馆},
-  key        = {zhong1 guo2 tu2 shu1 guan3 xue2 hui4},
+@misc{25_linux_cve_caused_2023,
+  title        = {A Linux CVE caused by usedouble free},
+  howpublished = {\url{https://www.cvedetails.com/cve/CVE-2023-28464/}},
+  year         = {2023}
 }
 
-@periodical{aaas1883science,
-  author     = {{American Association for the Advancement of Science}},
-  title      = {Science},
-  year       = {1883},
-  volume     = {1},
-  number     = {1},
-  address    = {Washington, D.C.},
-  publisher  = {American Association for the Advancement of Science},
+@misc{26_unit_testing_framework_2023,
+  title        = {A unit testing framework for the Linux kernel},
+  howpublished = {\url{https://kunit.dev/}},
+  year         = {2023}
 }
 
-@newspaper{fugang2000fengsha,
-  author     = {傅刚 and 赵承 and 李佳路},
-  title      = {大风沙过后的思考},
-  journal    = {北京青年报},
-  year       = {2000},
-  date       = {2000-04-12},
-  number     = {14},
-  urldate    = {2002-03-06},
-  url        = {http://www.bjyouth.com.cn/Bqb/20000412/B/4216%5ED0412B1401.htm},
-  key        = {fu4 gang1},
+@misc{27_envidence_rfl_community_2023,
+  title        = {An envidence that RFL community lacks of enough available reviewers understanding netdev},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/CANiq72mDVQg9dbtbAYLSoxQo4ZTgyKk=e-DCe8itvwgc0=HOZw@mail.gmail.com/}},
+  year         = {2023}
 }
 
-@online{xiaoyu2001chubanye,
-  author     = {萧钰},
-  title      = {出版业信息化迈入快车道},
-  year       = {2001},
-  date       = {2001-12-19},
-  urldate    = {2002-04-15},
-  url        = {http://www.creader.com/news/20011219/200112190019.htm},
-  key        = {xiao1 yu4},
+@misc{28_envidence_rfl_community_2023,
+  title        = {An envidence that RFL community lacks of reviewers understanding netdev},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/20230614230128.199724bd@kernel.org/}},
+  year         = {2023}
 }
 
-@online{oclc2000about,
-  author     = {{Online Computer Library Center, Inc}},
-  title      = {About {OCLC}: History of Cooperation},
-  year       = {2000},
-  urldate    = {2000-01-08},
-  url        = {http://www.oclc.org/about/cooperation.en.htm},
+@misc{29_envidence_v4l2_community_2023,
+  title        = {An envidence that V4L2 community lacks of enough available reviewers understanding RFL},
+  howpublished = {\url{https://lpc.events/event/17/contributions/1430/}},
+  year         = {2023}
 }
 
-@software{scitor2000project,
-  author     = {{Scitor Corporation}},
-  title      = {Project scheduler},
-  address    = {Sunnyvale, Calif.},
-  publisher  = {Scitor Corporation},
-  year       = {1983},
-  medium     = {DK},
+@misc{30_fix_ab_ba_2023,
+  title        = {Fix a AB-BA deadlock using io\_uring\_cmd\_complete\_in\_task},
+  howpublished = {\url{https://lore.kernel.org/lkml/20230525183607.1793983-55-sashal@kernel.org/}},
+  year         = {2023}
+}
+
+@misc{31_lints_kernel_embedded_2023,
+  title        = {Lints for kernel or embedded system development},
+  howpublished = {\url{https://github.com/Rust-for-Linux/klint}},
+  year         = {2023}
+}
+
+@misc{32_puzzlefs_buiild_vfs_2023,
+  title        = {PuzzleFS buiild on the top of vfs abstractions in RFL},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/20230609063118.24852-1-amiculas@cisco.com/}},
+  year         = {2023}
+}
+
+@misc{33_rewriting_drivers_rfl_2023,
+  title        = {Rewriting drivers in RFL can still have bugs},
+  howpublished = {\url{https://lwn.net/Articles/953116/}},
+  year         = {2023}
+}
+
+@misc{34_rfl_breaks_rule_2023,
+  title        = {RFL breaks the rule of no duplicate drivers in Linux},
+  howpublished = {\url{https://lpc.events/event/17/contributions/1501/}},
+  year         = {2023}
+}
+
+@misc{35_rfl_driver_selection_2023,
+  title        = {RFL driver selection reasons},
+  howpublished = {\url{https://lore.kernel.org/all/87y1ofj5tt.fsf@metaspace.dk/}},
+  year         = {2023}
+}
+
+@misc{36_tarfs_buiild_vfs_2023,
+  title        = {Tarfs buiild on the top of vfs abstractions in RFL},
+  howpublished = {\url{https://github.com/Rust-for-Linux/linux/pull/1037}},
+  year         = {2023}
+}
+
+@misc{37_collaboration_method_rfl_2023,
+  title        = {The collaboration method of RFL community},
+  howpublished = {\url{https://rust-for-linux.com/contributing}},
+  year         = {2023}
+}
+
+@misc{38_community_based_distributed_2023,
+  title        = {The community-based distributed test automation system KernelCI},
+  howpublished = {\url{https://foundation.kernel.org/}},
+  year         = {2023}
+}
+
+@misc{39_deadlock_rfl_abstraction_2023,
+  title        = {The deadlock of RFL abstraction and real use drivers},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/8e9e2908-c0da-49ec-86ef-b20fb3bd71c3@lunn.ch/}},
+  year         = {2023}
+}
+
+@misc{40_first_rust_driver_2023,
+  title        = {The first rust driver merged into in the Linux mainline},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/20231213004211.1625780-1-fujita.tomonori@gmail.com/}},
+  year         = {2023}
+}
+
+@misc{41_google_syzbot_kernel_2023,
+  title        = {The google Syzbot kernel fuzzer project},
+  howpublished = {\url{https://syzkaller.appspot.com/upstream}},
+  year         = {2023}
+}
+
+@misc{42_intel_linux_kernel_2023,
+  title        = {The intel Linux Kernel Performance(LKP) project},
+  howpublished = {\url{https://www.intel.com/content/www/us/en/developer/topic-technology/open/linuxkernel-performance/overview.html}},
+  year         = {2023}
+}
+
+@misc{43_linux_kernel_docuement_2023,
+  title        = {The Linux kernel docuement requirement},
+  howpublished = {\url{https://docs.kernel.org/doc-guide/kernel-doc.html}},
+  year         = {2023}
+}
+
+@misc{44_lto_optimization_rust_2023,
+  title        = {The LTO optimization for rust kernel modules},
+  howpublished = {\url{https://kangrejos.com/2023/Inlining%20and%20LTO%20for%20Rust%20Kernel%20Modules.pdf}},
+  year         = {2023}
+}
+
+@misc{45_mainling_list_rust_2023,
+  title        = {The mainling list of Rust-for-Linux project},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/}},
+  year         = {2023}
+}
+
+@misc{46_network_phy_driver_2023,
+  title        = {The network PHY driver abstraction is merged},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/170263322444.1975.17234929609368010648.gitpatchwork-notify@kernel.org/}},
+  year         = {2023}
+}
+
+@misc{47_official_statistics_rfl_2023,
+  title        = {The official statistics about the RFL community size},
+  howpublished = {\url{https://kangrejos.com/2023/}},
+  year         = {2023}
+}
+
+@misc{48_ownership_mechanism_rust_2023,
+  title        = {The ownership mechanism of the Rust},
+  howpublished = {\url{https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html}},
+  year         = {2023}
+}
+
+@misc{49_patch_pin_init_2023,
+  title        = {The patch of pin-init API},
+  howpublished = {\url{https://github.com/Rust-for-Linux/linux/commit/90e53c5e70a69159ec255fec361f7dcf9cf36eae}},
+  year         = {2023}
+}
+
+@misc{50_rust_implementation_drivers_2023,
+  title        = {The Rust implementation of drivers/net/phy/ax88796b.c},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/20231213004211.1625780-5-fujita.tomonori@gmail.com/}},
+  year         = {2023}
+}
+
+@misc{51_rust_programming_language_2023,
+  title        = {The Rust Programming Language},
+  howpublished = {\url{https://www.rust-lang.org/}},
+  year         = {2023}
+}
+
+@misc{52_time_since_first_2023,
+  title        = {Time since first commit in the git history in netdev subsystem of Linux},
+  howpublished = {\url{https://people.kernel.org/kuba/more-development-statistics}},
+  year         = {2023}
+}
+
+@misc{53_deadlock_bug_rfl_2024,
+  title        = {A deadlock bug in the RFL project},
+  howpublished = {\url{https://github.com/Rust-for-Linux/linux/issues/998}},
+  year         = {2024}
+}
+
+@misc{54_interpreter_rust_mid_level_2024,
+  title        = {An interpreter for Rust’s mid-level intermediate representation},
+  howpublished = {\url{https://github.com/rust-lang/miri}},
+  year         = {2024}
+}
+
+@misc{55_kernel_self_protection_2024,
+  title        = {Kernel Self Protection Project},
+  howpublished = {\url{https://kernsec.org/wiki/index.php/Kernel_Self_Protection_Project}},
+  year         = {2024}
+}
+
+@misc{56_rfl_vfs_safety_2024,
+  title        = {RFL vfs safety abstraction},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/CY6W7MLYLYEI.1DX1F6OL9IIDV@suppilovahvero/T/#mbadc4049b874d7cc9621e0c4abced36ec4bf9e4b}},
+  year         = {2024}
+}
+
+@misc{57_7_pin_init_2024,
+  title        = {The 7 pin-init patches proposed in the Github},
+  howpublished = {\url{https://lore.kernel.org/all/?q=Rust+pin-init+API+for+pinned+initialization+of+structs}},
+  year         = {2024}
+}
+
+@misc{58_address_space_layout_2024,
+  title        = {The Address space layout randomization wiki},
+  howpublished = {\url{https://en.wikipedia.org/wiki/Address_space_layout_randomization}},
+  year         = {2024}
+}
+
+@misc{59_android_binder_driver_2024,
+  title        = {The android binder driver in Rust},
+  howpublished = {\url{https://github.com/Darksonn/linux}},
+  year         = {2024}
+}
+
+@misc{60_book_linux_device_2024,
+  title        = {The book Linux Device Drivers, Third Edition},
+  howpublished = {\url{https://lwn.net/Kernel/LDD3/}},
+  year         = {2024}
+}
+
+@misc{61_documentation_how_linux_2024,
+  title        = {The documentation about how Linux handle bugs},
+  howpublished = {\url{https://docs.kernel.org/process/index.html#dealing-with-bugs}},
+  year         = {2024}
+}
+
+@misc{62_e1000_nic_driver_2024,
+  title        = {The e1000 NIC driver in Rust},
+  howpublished = {\url{https://github.com/fujita/rust-e1000}},
+  year         = {2024}
+}
+
+@misc{63_ebpf_project_2024,
+  title        = {The ebpf project},
+  howpublished = {\url{https://ebpf.io/}},
+  year         = {2024}
+}
+
+@misc{64_gpio_driver_written_2024,
+  title        = {The gpio driver written in Rust},
+  howpublished = {\url{https://github.com/Rust-for-Linux/linux/blob/rust/drivers/gpio/gpio_pl061_rust.rs}},
+  year         = {2024}
+}
+
+@misc{65_io_uring_project_2024,
+  title        = {The io\_uring project},
+  howpublished = {\url{https://github.com/axboe/liburing}},
+  year         = {2024}
+}
+
+@misc{66_issue_labels_rust_2024,
+  title        = {The issue labels in the Rust-for-Linux Github},
+  howpublished = {\url{https://github.com/Rust-for-Linux/linux/issues}},
+  year         = {2024}
+}
+
+@misc{67_mac_gpu_driver_2024,
+  title        = {The Mac GPU driver in Rust},
+  howpublished = {\url{https://github.com/AsahiLinux/linux/tree/gpu/rust-wip}},
+  year         = {2024}
+}
+
+@misc{68_null_block_driver_2024,
+  title        = {The null block driver written in Rust},
+  howpublished = {\url{https://lore.kernel.org/rust-for-linux/20230503090708.2524310-1-nmi@metaspace.dk/}},
+  year         = {2024}
+}
+
+@misc{69_nvme_device_driver_2024,
+  title        = {The nvme device driver written in Rust},
+  howpublished = {\url{https://github.com/metaspace/linux/tree/nvme}},
+  year         = {2024}
+}
+
+@misc{70_semaphore_driver_written_2024,
+  title        = {The semaphore driver written in Rust},
+  howpublished = {\url{https://github.com/Rust-for-Linux/linux/blob/rust/samples/rust/rust_semaphore.rs}},
+  year         = {2024}
+}
+
+@misc{71_vytautas_astrauskas_how_2020,
+  title        = {How do programmers use unsafe rust?},
+  author       = {{Vytautas Astrauskas, Christoph Matheja, Federico Poli, Peter Müller, and Alexander J. Summers}},
+  howpublished = {Proc. ACM Program. Lang., 4(OOPSLA)},
+  year         = {2020}
+}
+
+@misc{72_yechan_bae_rudra_2021,
+  title        = {Rudra: Finding Memory Safety Bugs in Rust at the Ecosystem Scale},
+  author       = {{Yechan Bae, Youngsuk Kim, Ammar Askar, Jungwon Lim, and Taesoo Kim}},
+  howpublished = {In Proceedings of the ACM SIGOPS 28th Symposium on Operating Systems Principles},
+  year         = {2021}
+}
+
+@misc{73_abhiram_balasubramanian_system_2017,
+  title        = {System programming in rust: Beyond safety},
+  author       = {{Abhiram Balasubramanian, Marek S. Baranowski, Anton Burtsev, Aurojit Panda, Zvonimir Rakamari, and Leonid Ryzhyk}},
+  howpublished = {SIGOPS Oper. Syst. Rev.},
+  year         = {2017}
+}
+
+@misc{74_inyoung_bang_trust_2023,
+  title        = {TRust: A compilation framework for in-process isolation to protect safe rust against untrusted code},
+  author       = {{Inyoung Bang, Martin Kayondo, HyunGon Moon, and Yunheung Paek}},
+  howpublished = {In 32nd USENIX Security Symposium (USENIX Security 23)},
+  year         = {2023}
+}
+
+@misc{75_stephen_blackburn_oil_2004,
+  title        = {Oil and water? high performance garbage collection in java with mmtk},
+  author       = {{Stephen M Blackburn, Perry Cheng, and Kathryn S McKinley}},
+  howpublished = {In Proceedings. 26th International Conference on Software Engineering},
+  year         = {2004}
+}
+
+@misc{76_vikas_chomal_significance_2014,
+  title        = {Significance of software documentation in software development process},
+  author       = {{Vikas S Chomal and Jatinderkumar R Saini}},
+  howpublished = {International Journal of Engineering Innovations and Research},
+  year         = {2014}
+}
+
+@misc{77_michael_coblenz_multimodal_2020,
+  title        = {A multimodal study of challenges using rust},
+  author       = {{Michael Coblenz, April Porter, Varun Das, Teja Nallagorla, and Michael Hicks}},
+  howpublished = {Plateau Workshop},
+  year         = {2020}
+}
+
+@misc{78_albert_danial_cloc_2023,
+  title        = {cloc: v1.92},
+  author       = {{Albert Danial}},
+  year         = {2023}
+}
+
+@misc{79_ana_nora_evans_2020,
+  title        = {Is rust used safely by software developers?},
+  author       = {{Ana Nora Evans, Bradford Campbell, and Mary Lou Soffa}},
+  howpublished = {In Proceedings of the ACM/IEEE 42nd International Conference on Software Engineering},
+  year         = {2020}
+}
+
+@misc{80_sishuai_gong_snowboard_2021,
+  title        = {Snowboard: Finding kernel concurrency bugs through systematic inter-thread communication analysis},
+  author       = {{Sishuai Gong, Deniz Altınbüken, Pedro Fonseca, and Petros Maniatis}},
+  howpublished = {In Proceedings of the ACM SIGOPS 28th Symposium on Operating Systems Principles},
+  year         = {2021}
+}
+
+@misc{81_amélie_gonzalez_takeaways_2023,
+  title        = {Takeaways of Implementing a Native Rust UDP Tunneling Network Driver in the Linux Kernel},
+  author       = {{Amélie Gonzalez, Djob Mvondo, and Yérom-David Bromberg}},
+  howpublished = {In Proceedings of the 12th Workshop on Programming Languages and Operating Systems},
+  year         = {2023}
+}
+
+@misc{82_liwei_guo_transkernel_2019,
+  title        = {Transkernel: bridging monolithic kernels to peripheral cores},
+  author       = {{Liwei Guo, Shuang Zhai, Yi Qiao, and Felix Xiaozhu Lin}},
+  howpublished = {In 2019 USENIX Annual Technical Conference (USENIX ATC 19)},
+  year         = {2019}
+}
+
+@misc{83_sandra_höltervennhoff_wouldnt_2023,
+  title        = {"I wouldn’t want my unsafe code to run my pacemaker": An interview study on the use, comprehension, and perceived risks of unsafe rust},
+  author       = {{Sandra Höltervennhoff, Philip Klostermeyer, Noah Wöhler, Yasemin Acar, and Sascha Fahl}},
+  howpublished = {In 32nd USENIX Security Symposium (USENIX Security 23)},
+  year         = {2023}
+}
+
+@misc{84_thuan_huynh_memory_2006,
+  title        = {A memory model sensitive checker for c\#},
+  author       = {{Thuan Quang Huynh and Abhik Roychoudhury}},
+  howpublished = {In International Symposium on Formal Methods},
+  year         = {2006}
+}
+
+@misc{85_mohamed_ismail_quantitative_2018,
+  title        = {Quantitative overhead analysis for python},
+  author       = {{Mohamed Ismail and G Edward Suh}},
+  howpublished = {In 2018 IEEE International Symposium on Workload Characterization (IISWC)},
+  year         = {2018}
+}
+
+@misc{86_ralf_jung_rustbelt_2017,
+  title        = {Rustbelt: Securing the foundations of the rust programming language},
+  author       = {{Ralf Jung, Jacques-Henri Jourdan, Robbert Krebbers, and Derek Dreyer}},
+  howpublished = {Proc. ACM Program. Lang.},
+  year         = {2017}
+}
+
+@misc{87_asim_kadav_understanding_2012,
+  title        = {Understanding modern device drivers},
+  author       = {{Asim Kadav and Michael M. Swift}},
+  howpublished = {In Proceedings of the Seventeenth International Conference on Architectural Support for Programming Languages and Operating Systems},
+  year         = {2012}
+}
+
+@misc{88_paul_karger_multics_2002,
+  title        = {Multics security evaluation: Vulnerability analysis},
+  author       = {{Paul A Karger and Roger R Schell}},
+  howpublished = {In 18th Annual Computer Security Applications Conference},
+  year         = {2002}
+}
+
+@misc{89_paul_kirth_pkru_2022,
+  title        = {Pkru-safe: Automatically locking down the heap between safe and unsafe languages},
+  author       = {{Paul Kirth, Mitchel Dickerson, Stephen Crane, Per Larsen, Adrian Dabrowski, David Gens, Yeoul Na, Stijn Volckaert, and Michael Franz}},
+  howpublished = {In Proceedings of the Seventeenth European Conference on Computer Systems},
+  year         = {2022}
+}
+
+@misc{90_michalis_kokologiannakis_genmc_2021,
+  title        = {Genmc: A model checker for weak memory models},
+  author       = {{Michalis Kokologiannakis and Viktor Vafeiadis}},
+  howpublished = {In International Conference on Computer Aided Verification},
+  year         = {2021}
+}
+
+@misc{91_benjamin_lamowski_sandcrust_2017,
+  title        = {Sandcrust: Automatic sandboxing of unsafe components in rust},
+  author       = {{Benjamin Lamowski, Carsten Weinhold, Adam Lackorzynski, and Hermann Härtig}},
+  howpublished = {In Proceedings of the 9th Workshop on Programming Languages and Operating Systems},
+  year         = {2017}
+}
+
+@misc{92_stefan_lankes_exploring_2019,
+  title        = {Exploring rust for unikernel development},
+  author       = {{Stefan Lankes, Jens Breitbart, and Simon Pickartz}},
+  howpublished = {In Proceedings of the 10th Workshop on Programming Languages and Operating Systems},
+  year         = {2019}
+}
+
+@misc{93_amit_levy_ownership_2015,
+  title        = {Ownership is theft: Experiences building an embedded os in rust},
+  author       = {{Amit Levy, Michael P. Andersen, Bradford Campbell, David Culler, Prabal Dutta, Branden Ghena, Philip Levis, and Pat Pannuto}},
+  howpublished = {In Proceedings of the 8th Workshop on Programming Languages and Operating Systems},
+  year         = {2015}
+}
+
+@misc{94_amit_levy_multiprogramming_2017,
+  title        = {Multiprogramming a 64kb computer safely and efficiently},
+  author       = {{Amit Levy, Bradford Campbell, Branden Ghena, Daniel B. Giffin, Pat Pannuto, Prabal Dutta, and Philip Levis}},
+  howpublished = {In Proceedings of the 26th Symposium on Operating Systems Principles},
+  year         = {2017}
+}
+
+@misc{95_amit_levy_case_2017,
+  title        = {The case for writing a kernel in rust},
+  author       = {{Amit Levy, Bradford Campbell, Branden Ghena, Pat Pannuto, Prabal Dutta, and Philip Levis}},
+  howpublished = {In Proceedings of the 8th Asia-Pacific Workshop on Systems},
+  year         = {2017}
+}
+
+@misc{96_hongyu_li_rros_2023,
+  title        = {RROS: A Dualkernel Real-time Operating System in Rust},
+  author       = {{Hongyu Li, Jiangtao Hu, Qichen Qiu, Yuxuan Shan, Bochen Wang, Jiajun Du, Yexuan Yang, Xinge Wang, Shangguang Wang, and Mengwei Xu}},
+  year         = {2023}
+}
+
+@misc{97_zhuohua_li_securing_2019,
+  title        = {Securing the device drivers of your embedded systems: framework and prototype},
+  author       = {{Zhuohua Li, Jincheng Wang, Mingshen Sun, and John CS Lui}},
+  howpublished = {In Proceedings of the 14th International Conference on Availability, Reliability and Security},
+  year         = {2019}
+}
+
+@misc{98_zhuohua_li_mirchecker_2021,
+  title        = {MirChecker: Detecting Bugs in Rust Programs via Static Analysis},
+  author       = {{Zhuohua Li, Jincheng Wang, Mingshen Sun, and John C.S. Lui}},
+  howpublished = {In Proceedings of the 2021 ACM SIGSAC Conference on Computer and Communications Security},
+  year         = {2021}
+}
+
+@misc{99_a_light_reenix_2015,
+  title        = {Reenix: Implementing a unix-like operating system in rust},
+  author       = {{A. Light, Thomas W. Doeppner, and Shriram Krishnamurthi}},
+  year         = {2015}
+}
+
+@misc{100_peiming_liu_securing_2020,
+  title        = {Securing unsafe rust programs with xrust},
+  author       = {{Peiming Liu, Gang Zhao, and Jeff Huang}},
+  howpublished = {In Proceedings of the ACM/IEEE 42nd International Conference on Software Engineering},
+  year         = {2020}
+}
+
+@misc{101_vikram_narayanan_redleaf_2020,
+  title        = {Redleaf: Isolation and communication in a safe operating system},
+  author       = {{Vikram Narayanan, Tianjiao Huang, David Detweiler, Dan Appel, Zhaofeng Li, Gerd Zellweger, and Anton Burtsev}},
+  howpublished = {In Proceedings of the 14th USENIX Conference on Operating Systems Design and Implementation},
+  year         = {2020}
+}
+
+@misc{102_pierre_olivier_flashmon_2014,
+  title        = {Flashmon v2: Monitoring raw nand flash memory i/o requests on embedded linux},
+  author       = {{Pierre Olivier, Jalil Boukhobza, and Eric Senn}},
+  howpublished = {Acm Sigbed Review},
+  year         = {2014}
+}
+
+@misc{103_boqin_qin_understanding_2020,
+  title        = {Understanding memory and thread safety practices and issues in real-world rust programs},
+  author       = {{Boqin Qin, Yilun Chen, Zeming Yu, Linhai Song, and Yiying Zhang}},
+  howpublished = {In Proceedings of the 41st ACM SIGPLAN Conference on Programming Language Design and Implementation},
+  year         = {2020}
+}
+
+@misc{104_elijah_rivera_keeping_2021,
+  title        = {Keeping safe rust safe with galeed},
+  author       = {{Elijah Rivera, Samuel Mergendahl, Howard Shrobe, Hamed Okhravi, and Nathan Burow}},
+  howpublished = {In Annual Computer Security Applications Conference},
+  year         = {2021}
+}
+
+@misc{105_aaron_weiss_oxide_2019,
+  title        = {Oxide: The essence of rust},
+  author       = {{Aaron Weiss, Olek Gierczak, Daniel Patterson, and Amal Ahmed}},
+  howpublished = {arXiv preprint arXiv:1903.00982},
+  year         = {2019}
+}
+
+@misc{106_jorge_wong-mozqueda_code_2015,
+  title        = {Is code quality related to test coverage?},
+  author       = {{Jorge Arturo Wong-Mozqueda, Robert Haines, and Caroline Jay}},
+  howpublished = {In Proceedings of the International Workshop on Sustainable Software Systems Engineering},
+  year         = {2015}
+}
+
+@misc{107_xinmeng_xia_understanding_2023,
+  title        = {Understanding bugs in rust compilers},
+  author       = {{Xinmeng Xia, Yang Feng, and Qingkai Shi}},
+  howpublished = {pages 138–149},
+  year         = {2023}
+}
+
+@misc{108_hui_xu_memory_safety_2021,
+  title        = {Memory-safety challenge considered solved? an in-depth study with all rust cves},
+  author       = {{Hui Xu, Zhuangbin Chen, Mingshen Sun, Yangfan Zhou, and Michael R. Lyu}},
+  howpublished = {ACM Trans. Softw. Eng. Methodol.},
+  year         = {2021}
+}
+
+@misc{109_duo_zhang_study_2021,
+  title        = {A study of persistent memory bugs in the linux kernel},
+  author       = {{Duo Zhang, Om Rameshwar Gatla, Wei Xu, and Mai Zheng}},
+  howpublished = {In Proceedings of the 14th ACM International Conference on Systems and Storage},
+  year         = {2021}
+}
+
+@misc{110_yuchen_zhang_towards_2023,
+  title        = {Towards understanding the runtime performance of rust},
+  author       = {{Yuchen Zhang, Yunhang Zhang, Georgios Portokalidis, and Jun Xu}},
+  howpublished = {In Proceedings of the 37th IEEE/ACM International Conference on Automated Software Engineering},
+  year         = {2023}
+}
+
+@misc{111_xiaoye_zheng_closer_2023,
+  title        = {A Closer Look at the Security Risks in the Rust Ecosystem},
+  author       = {{Xiaoye Zheng, Zhiyuan Wan, Yun Zhang, Rui Chang, and David Lo}},
+  howpublished = {ACM Transactions on Software Engineering and Methodology},
+  year         = {2023}
+}
+
+@misc{112_shuofei_zhu_learning_2022,
+  title        = {Learning and programming challenges of rust: A mixed-methods study},
+  author       = {{Shuofei Zhu, Ziyi Zhang, Boqin Qin, Aiping Xiong, and Linhai Song}},
+  howpublished = {In Proceedings of the 44th International Conference on Software Engineering},
+  year         = {2022}
 }

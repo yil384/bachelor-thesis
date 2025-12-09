@@ -1,60 +1,31 @@
-% !TeX root = ../thuthesis-example.tex
+\chapter{附录：参考文献整理}
 
-\chapter{补充内容}
+本附录汇总了论文编写过程中参考和引用的关键资源，包括开源项目、官方文档、学术论文、技术报告等，作为论文主体内容的补充。
 
-附录是与论文内容密切相关、但编入正文又影响整篇论文编排的条理和逻辑性的资料，例如某些重要的数据表格、计算程序、统计表等，是论文主体的补充内容，可根据需要设置。
+\section{项目与文档资源}
 
-附录中的图、表、数学表达式、参考文献等另行编序号，与正文分开，一律用阿拉伯数字编码，
-但在数码前冠以附录的序号，例如“图~\ref{fig:appendix-figure}”，
-“表~\ref{tab:appendix-table}”，“式\eqref{eq:appendix-equation}”等。
+\begin{enumerate}
+  \item ArceOS 官方 GitHub 仓库：\url{https://github.com/arceos-org}
+  \item Starry-next 操作系统 GitHub 仓库：\url{https://github.com/arceos-org/starry-next}
+  \item ArceOS Tutorial Book：\url{https://rcore-os.cn/arceos-tutorial-book/}
+  \item ArceOS 官方网站：\url{http://arceos.org}
+  \item RCore OS Discussion：\url{https://github.com/orgs/rcore-os/discussions/21}
+  \item Stellarium 天文软件：\url{https://stellarium.org/}
+  \item HelenOS 微内核操作系统：\url{https://en.wikipedia.org/wiki/HelenOS}
+  \item SpaceNetLab: StarryNet 框架：\url{https://github.com/spacenetlab/starrynet}
+\end{enumerate}
 
+\section{技术报告与实验论文}
 
-\section{插图}
-
-% 附录中的插图示例（图~\ref{fig:appendix-figure}）。
-
-\begin{figure}
-  \centering
-  \includegraphics[width=0.6\linewidth]{example-image-a.pdf}
-  \caption{附录中的图片示例}
-  \label{fig:appendix-figure}
-\end{figure}
-
-
-\section{表格}
-
-% 附录中的表格示例（表~\ref{tab:appendix-table}）。
-
-\begin{table}
-  \centering
-  \caption{附录中的表格示例}
-  \begin{tabular}{ll}
-    \toprule
-    文件名          & 描述                         \\
-    \midrule
-    thuthesis.dtx   & 模板的源文件，包括文档和注释 \\
-    thuthesis.cls   & 模板文件                     \\
-    thuthesis-*.bst & BibTeX 参考文献表样式文件    \\
-    thuthesis-*.bbx & BibLaTeX 参考文献表样式文件  \\
-    thuthesis-*.cbx & BibLaTeX 引用样式文件        \\
-    \bottomrule
-  \end{tabular}
-  \label{tab:appendix-table}
-\end{table}
-
-
-\section{数学表达式}
-
-% 附录中的数学表达式示例（式\eqref{eq:appendix-equation}）。
-\begin{equation}
-  \frac{1}{2 \uppi \symup{i}} \int_\gamma f = \sum_{k=1}^m n(\gamma; a_k) \mathscr{R}(f; a_k)
-  \label{eq:appendix-equation}
-\end{equation}
-
-
-\section{文献引用}
-
-附录\cite{dupont1974bone}中的参考文献引用\cite{zhengkaiqing1987}示例
-\cite{dupont1974bone,zhengkaiqing1987}。
-
-\printbibliography
+\begin{enumerate}[resume]
+  \item Liang, Y. (2023). \textit{ArceOS 文件系统架构设计与实现}. OS Lab Report.
+  \item Gabber, E., Small, C., Bruno, J., Brustoloni, J., \& Silberschatz, A. (2024). \textit{The Pebble Component-Based Operating System}. ResearchGate.
+  \item Lawall, J. (2022). \textit{THINK: A Software Framework for Component-based Operating Systems}. Inria.
+  \item Barkhausen Institut. (2024). \textit{Composable Operating System}. Barkhausen Institut.
+  \item Feske, N. (2024). \textit{Genode Foundations}. Genode Labs.
+  \item Vaishnav, A., Pham, K. D., Powell, J., \& Koch, D. (2020). \textit{FOS: A Modular FPGA Operating System for Dynamic Workloads}. arXiv:2001.09990.
+  \item Ababneh, E., Al-Ali, Z., Ha, S., Han, R., \& Keller, E. (2018). \textit{Elasticizing Linux via Joint Disaggregation of Memory and Computation}. arXiv:1806.00885.
+  \item Kristiansson, J. (2024). \textit{ColonyOS -- A Meta-Operating System for Distributed Computing Across Heterogeneous Platforms}. arXiv:2403.16486.
+  \item Hu, J., Lu, E., Holland, D. A., Kawaguchi, M., Chong, S., \& Seltzer, M. I. (2022). \textit{Towards Porting Operating Systems with Program Synthesis}. arXiv:2204.07167.
+  \item Synopsys. (2024). \textit{ARC Operating Systems}. Synopsys.
+\end{enumerate}

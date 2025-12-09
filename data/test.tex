@@ -1,0 +1,680 @@
+% !TeX root = ../thuthesis-example.tex
+
+\begin{translation}
+    \label{cha:translation}
+    
+    \title{Rust-for-Linux的实证研究：成功、困惑与妥协}
+    \maketitle
+    
+    \tableofcontents
+    
+    \section{摘要}
+    
+    Linux 发展已逾三十年，早已成为现代数字世界的计算基础：无论是庞大复杂的主机（如超级计算机），还是廉价轻量的嵌入式设备（如物联网设备），无数应用都构建于其之上。然而，这一基础设施自诞生之日起便一直受到内存与并发错误的困扰，其根源在于 C 语言对内存操作的宽松约束，允许大量“野蛮”的访问行为。
+    
+    近期项目 Rust-for-Linux（RFL）有望一劳永逸地缓解 Linux 内核中的安全问题。RFL 通过将 Rust 的静态所有权机制与类型检查引入内核代码，使得内核在不牺牲性能的前提下，有可能摆脱内存与并发错误的困扰。尽管 RFL 正在逐步成熟并被并入 Linux 主线内核，其安全性与性能是否能够真正兼得仍未得到系统性研究。
+    
+    为此，本文开展了对 RFL 的首次实证研究，旨在揭示其发展现状与带来的益处，特别关注 Rust 如何与 Linux 内核融合，以及该融合是否能在不增加系统开销的前提下保障驱动程序的安全性。我们收集并分析了六个关键的 RFL 驱动，涵盖数百个 issue 与 PR、数千次 GitHub 提交与邮件往来，以及超 1.2 万条 Zulip 论坛讨论。
+    
+    研究发现：虽然 Rust 在一定程度上缓解了内核中的安全漏洞，但其能力仍不足以彻底根除此类问题。更重要的是，如果使用不当，Rust 所提供的安全保障反而可能带来显著的运行时开销与开发负担。
+    
+    \section{引言}
+    
+    作为当前计算基础设施的事实标准，Linux 多年来持续致力于消除系统软件中的内存与并发错误 \cite{55,61,80,109}。尽管社区已投入大量安全加固与工程实践 \cite{1,19}，这类缺陷仍层出不穷 \cite{15,23,24,25}。其根本原因之一在于 C 语言对内存访问几乎不加限制，使得 Linux 内核通过类型强制转换、原始指针解引用等方式构建复杂的抽象层与通用框架（如设备驱动 \cite{60}），以实现模块化与高性能。
+    
+    如何在不降低性能的前提下实现内存安全？Rust 提供了一种可能的解决方案 \cite{13}。作为一种新兴的、静态强类型的系统编程语言，Rust 宣称可在无运行时开销的情况下同时提供安全性与性能 \cite{51}。这种能力源于其“所有权机制” \cite{48}，其核心包括三条规则：1）每块内存只能被一个变量独占拥有；2）变量的所有权可以被转移（move）或通过引用（borrow）临时借用，线程间借用需满足 Send 和 Sync trait 的要求；3）变量离开作用域时自动释放其所拥有的内存。Rust 依靠编译期的静态检查强制执行这些规则，避免了繁重的内存检测工具 \cite{84,90} 和垃圾回收机制 \cite{75,85} 所带来的运行时中断与延迟。
+    
+    \vspace{0.5em}
+    \noindent\textbf{Rust-for-Linux 项目}
+    
+    正是由于上述特性，Rust-for-Linux（RFL）项目在 2013 年作为一项爱好者尝试而诞生 \cite{3}。最初，该项目基于内核头文件构建一个 Rust 对象文件，并在可加载内核模块中调用一个简单的 Rust 函数，打印 “Hello from Rust!++”。虽然初期 Rust 仅作为内核外部的“良好伙伴”，其主要用途是为用 C 编写的模块提供简洁安全的功能片段，但这一尝试为后续发展奠定了基础。
+    
+    2019 年，社区提出将内核模块完全用 Rust 编写的设想 \cite{8,11}，并采取大胆举措在 Linux 主线中引入轻量级的 Rust 封装层。2020 年，该理念在 Linux Plumbers Conference (LPC) 上亮相，得到广泛支持 \cite{10}，2021 年首个 RFL RFC 提案发布 \cite{13}，标志着项目加速推进。在 Rust 社区协作机制的推动下，RFL 迅速发展：所有代码通过 Git 管理，持续集成 (CI) 管道负责质量把控，社区讨论转向 Zulip 平台，互动频繁。自 RFC 发布仅一年，RFL 即作为实验特性并入 Linux v6.1 主线内核 \cite{20}。
+    
+    随着 RFL 在强化内核可靠性的道路上逐步提速，众多尝试涌现，包括在网络 \cite{62}、块设备 \cite{68,69}、文件系统 \cite{32,36}、Android 平台 \cite{59} 与 GPU \cite{67} 等场景中实现驱动程序。其中，一个网络驱动在经过 11 轮 RFL 与网络社区协作评审后成功并入 Linux v6.8，这表明 RFL 已从实验阶段迈入实际应用领域。目前，RFL 已成为最活跃的内核子系统之一 \cite{47}，与 ebpf \cite{63} 和 io\_uring \cite{65} 并驾齐驱。
+    
+    \vspace{0.5em}
+    \noindent\textbf{研究动机}
+    
+    尽管 Rust 语言本身已被广泛研究与理解 \cite{71,103,110}，但其与 Linux 的融合方式（即 RFL）仍鲜有系统性探讨。理解 Rust 如何嵌入 Linux 尤为重要，不仅为驱动开发者提供实践指导，也为未来将 Rust 引入更多内核子系统积累宝贵经验。
+    
+    此外，RFL 还为我们提供了观察一门新语言如何融入庞大、传统且运行于数十亿设备之上的代码库的独特视角。这一过程极具挑战，涉及将内核库模块化为 Rust crate、语言语义与语法的适配（如将 C 宏范式转换为 Rust 接口）以及将 Rust 的严格安全规则嵌入对内存操作更为宽松的内核运行环境。此外，RFL 还带来了新的协作模式与开发工具，这些元素正在逐步改变 Linux 的开发流程——这一过程既有成功，也充满困惑与妥协。
+    
+    自 2022 年以来，已有超 2 万行 RFL 代码并入 Linux 主线内核，我们认为现在是回顾整个过程并提炼经验教训的最佳时机。为此，本文首次对 RFL 与 Linux 内核融合的全貌进行系统性研究，深入分析六个 Rust 驱动程序，涉及 269 个 issue、763 个 PR、1540 次提交、3611 封邮件和 12501 条 Zulip 讨论。
+    
+    本研究旨在解答以下三个核心问题：
+    
+    \subsection*{研究问题与贡献}
+    
+    \vspace{0.5em}
+    \noindent\textbf{RQ1：RFL 的现状如何？}
+    
+    基于所收集的数据，本文首先对 RFL 的整体发展现状进行了全面分析，进一步深入到具体驱动的实现细节，探讨 Rust 与 Linux 内核在实现层面的差距。主要发现包括：
+    
+    \begin{itemize}
+      \item RFL 的工具链（如 Kbuild）已基本成熟，但缺乏关键驱动与文件系统的支持，其发展受限于缓慢的代码审查流程；
+      \item Rust 中的 Trait 机制虽显著减轻了人工内核安全审计负担，但并非保障完全内存安全的“银弹”；
+      \item Rust 与内核在内存操作模型上的差异导致实现中出现大量复杂的绕行方案，从而带来运行时和开发上的双重开销。
+    \end{itemize}
+    
+    \vspace{0.5em}
+    \noindent\textbf{RQ2：RFL 是否达成了预期目标？}
+    
+    我们重新评估了内核社区设定的三个 RFL 目标：\textbf{1）提升安全性、2）低开销、3）降低开发难度}。通过分析已收集的错误报告、PR 和补丁，并在真实硬件上运行 5 个 RFL 驱动程序，我们发现：
+    
+    \begin{itemize}
+      \item 与普遍看法相反，Rust 只能使内核“更容易实现安全性”，但并不能完全消除安全隐患，因驱动开发中不可避免会使用 \texttt{unsafe}；
+      \item 泛型 Trait 与智能指针虽然增强了抽象能力，却带来了大量指令缓存失效（icache miss），在某些场景下 Rust 驱动性能显著低于 C 驱动；
+      \item 令人欣慰的是，Rust 显著提升了内核代码质量，并吸引了大量原本不熟悉 C 的新开发者参与内核编程。
+    \end{itemize}
+    
+    \vspace{0.5em}
+    \noindent\textbf{RQ3：从 RFL 中获得了哪些经验教训？}
+    
+    基于前述两个问题的分析结果，本文为开发者与社区分别提出以下实践建议：
+    
+    \begin{itemize}
+      \item 对于开发者：应理性看待 Rust 的安全保证，Rust 的类型检查无法发现语义性错误，且在部分关键场景下仍需依赖 \texttt{unsafe} 作为最终手段；
+      \item 对于社区：在推动 RFL 扩展至更多内核子系统时，应依据“安全收益与工程代价”的权衡模型来评估优先级；
+      \item 本文模型分析显示，在 79 个子系统中，有 7 个子系统（含 25 个驱动）因漏洞密度高且规模适中，具有较高的 Rust 化优先价值，典型如 \texttt{ext4} 与 \texttt{linux-block}。
+    \end{itemize}
+    
+    \vspace{0.5em}
+    \noindent\textbf{研究贡献}
+    
+    相较于已有研究主要聚焦于 Rust 本身的安全性与性能 \cite{81,97}，本文首次系统地研究了 Rust 与 Linux 的融合实践，主要贡献如下：
+    
+    \begin{itemize}
+      \item 构建了包含 1540 次提交、269 个 issue、763 个 PR 与 3611 封邮件的 RFL 开发数据集，并将在论文发表后公开；
+      \item 基于该数据集，开发了自动化工具链，可对 API 使用情况进行统计分析并生成子系统视角的报告；
+      \item 提供了 RFL 当前发展状态的深入分析，揭示了将 Rust 引入内核运行环境的关键困难，并对未来 RFL 驱动开发提供了实用建议。
+    \end{itemize}
+    
+    相关数据与代码已发布在：\url{https://github.com/Richardhongyu/rfl_empirical_tools}，我们将持续跟踪 RFL 的演化并更新该仓库。
+    
+    \section{Rust 在 Linux 中的基础原理}
+    
+    \subsection{Rust 的安全模型}
+    
+    Rust 是一种静态、强类型的系统编程语言，其核心安全模型严格限制对内存位置的访问：在任意时间点，一个内存地址只能被一个变量写入，但可被多个变量读取。该模型由以下三条基本规则构成：
+    
+    \begin{itemize}
+      \item \textbf{所有权与生命周期}：每个内存位置（即值）在任意时刻只能被一个变量独占拥有，这与 affine 类型系统类似 \cite{105}。只有该变量的拥有者可以修改此值。每个拥有者在代码中具有作用域，作用域结束即意味着生命周期终结，Rust 编译器会自动释放其所绑定的内存以及所有别名变量所引用的资源。
+    
+      \item \textbf{移动与借用}：所有权可通过“移动（Move）”的方式进行转移，例如变量被传递给函数或赋值给另一个变量时；也可通过“借用（Borrow）”的方式临时引用，形成引用类型但不转移所有权。Rust 进一步通过 \texttt{Send} 与 \texttt{Sync} 两个 trait 实现线程间安全的移动与借用。
+    
+    \end{itemize}
+    
+    上述机制通过编译期间的静态检查强制实施，从而省去了传统语言中繁重的运行时内存检查器 \cite{84,90} 和垃圾回收机制 \cite{75,85}，避免系统运行中断与延迟。
+    
+    \subsection{unsafe 关键字}
+    
+    虽然上述规则能有效确保内存与线程安全，但同时也限制了语言表达能力。例如，Rust 不允许实现类似双向链表的结构（每个节点同时被前后节点引用），因为该结构违反了独占所有权的原则。
+    
+    为解决这一问题，Rust 引入了 \texttt{unsafe} 关键字，作为绕过编译器所有权检查的“逃生舱”。使用 \texttt{unsafe}，程序员可执行更广泛的操作，如原始指针解引用、通过 FFI 调用 C 语言函数、嵌入汇编指令等。该机制意味着编译器将对程序员在 \texttt{unsafe} 区块中的行为予以信任。
+    
+    实践证明，只要将 \texttt{unsafe} 操作妥善封装于安全 API 之中，整个程序依然可以保持 Rust 所承诺的安全保障 \cite{86}。
+    
+    \subsection{Rust 与 Linux 的绑定机制}
+    
+    为了将 Rust 编写的设备驱动嵌入到 C 编写的 Linux 内核中，RFL 首先对驱动依赖的内核 API（如 \texttt{kmalloc}）进行预处理。借助 \texttt{rust-bindgen} 工具，RFL 自动生成对应的 Rust 接口，这些接口遵循 Rust 的调用约定，并被组织成所谓的“内核 crate”（即 Rust 库），供驱动通过 FFI 调用。
+    
+    由于这些 FFI 接口最终运行在内核地址空间中，并不会被 Rust 编译器检查，其本质上是不安全的。为此，RFL 构建了一个“安全抽象层”，统一对外暴露封装后的安全 API，Rust 驱动只能调用该层所导出的接口。
+    
+    图~\ref{fig:appendix-survey-figure} 所示为一个实际的字符设备驱动集成示例。该过程中：
+    
+    \begin{itemize}
+      \item \textbf{（a）} \texttt{rust-bindgen} 处理驱动包含的头文件 \texttt{cdev.h}，为其中的数据结构与接口生成对应的 FFI；
+      \item \textbf{（b）} 开发者手动构建内核 crate，将不安全的调用（如 \texttt{bindings::cdev\_alloc}）封装为 \texttt{alloc} 等安全接口；
+      \item \textbf{（c）} 驱动模块遵循 Rust 编程规范，仅调用安全抽象层所定义的接口。
+    \end{itemize}
+    
+    值得一提的是，RFL 鼓励通过注释在开发者之间建立“安全协定”，明确每个 \texttt{unsafe} 块所要求的前置条件与参数使用规范。
+    
+    \subsection{RFL 的目标}
+    
+    RFL 在最初的 RFC 提案 \cite{13} 与后续正式介绍中 \cite{14} 表达了如下设计目标，如表~\ref{tab:appendix-survey-table} 所示：
+    
+    \begin{itemize}
+      \item \textbf{安全性}：提供内存安全与线程安全的驱动；
+      \item \textbf{性能}：在抽象不引入额外开销的前提下实现上述目标；
+      \item \textbf{工具支持}：增强文档与持续集成（CI）测试质量；
+      \item \textbf{开发效率}：提升开发流程自动化与开发者体验；
+      \item \textbf{社区参与}：吸引更多开发者参与内核项目。
+    \end{itemize}
+    
+    \section{RQ1：RFL 的现状}
+    
+    本节基于收集到的提交记录、问题讨论与邮件交流，分析了 Rust-for-Linux（RFL）当前的开发状态，并进一步通过对安全抽象层与 Rust 驱动的结构分析，揭示了 Rust 与内核编程之间的张力。
+    
+    \subsection{RFL 的发展现状}
+    
+    我们主要观察到：尽管 RFL 项目尚处于早期阶段，其底层基础设施（如中断 irq、内存管理 mm、调度 sched）已趋于成熟；而独立性更强的驱动程序与文件系统模块仍较为缺乏，成为下一阶段发展的重点。然而，\textbf{缺乏足够且熟悉 Rust 与内核的审查者}，已成为制约 RFL 推进的主要瓶颈。
+    
+    \subsubsection{研究方法}
+    
+    我们从 GitHub PR/提交记录及 Linux 邮件列表中收集 RFL 相关代码，因为 RFL 社区主要使用 GitHub 管理项目，随后再向内核社区投稿。根据 RFL 的社区协作流程 \cite{37}，我们将其代码分为三类：
+    
+    \begin{itemize}
+      \item \textbf{待审查（pending）}：代码处于 GitHub PR 阶段，尚未通过第一次审查；
+      \item \textbf{已提交（staged）}：PR 审查通过，进入邮件列表，由内核子系统维护者进行正式评审；
+      \item \textbf{已合入（merged）}：最终被合并到主线内核（Linux mainline）或 Linux-next 分支中。
+    \end{itemize}
+    
+    总体而言，我们收集到的代码包括：
+    
+    \begin{itemize}
+      \item 160+ 条已合入提交（约 1.9 万行代码）；
+      \item 1300+ 条已提交但未合入提交（约 11.2 万行代码）；
+      \item 500+ 条待审查提交（约 18.6 万行代码）。
+    \end{itemize}
+    
+    我们进一步提取其中涉及的内核数据结构与函数，并开发正则分析工具，按子系统与阶段分类统计其演化分布。
+    
+    \subsubsection{分析结果}
+    
+    \paragraph{（1）开发进度分析}
+    
+    我们的目标是评估当前 RFL 代码库与“完全 Rust 化”的 Linux 内核之间的差距。目前，RFL 与内核主线的融合仍处于早期阶段：已合入的代码仅占 Linux 总代码量的 0.125\%，其余 92.9\% 的代码仍处于待审或提交状态。
+    
+    \vspace{0.5em}
+    \noindent\textbf{洞察 1：驱动、网络与文件系统构成了 RFL 的“长尾”代码。}
+    
+    我们观察到 RFL 的大部分已合入代码集中在调度、内存管理与中断系统等通用模块，而驱动、文件系统、网络子系统与安全模块（占 Linux v6.2 中 78\% 的代码量）仅占 RFL 小部分，呈现出典型的长尾特征。
+    
+    这一现象可理解：通用基础模块为所有驱动共享，优先开发价值高；而驱动与文件系统则与具体硬件型号紧密绑定，开发复杂度与审查成本均更高。例如，网络社区为合并一个 PHY 驱动，经历了 6 个月、11 个版本的补丁迭代 \cite{46}。
+    
+    \paragraph{（2）补丁分布分析}
+    
+    我们进一步将 RFL 中的补丁按用途分为三类：用于安全抽象层构建、Kbuild 系统集成以及 Rust 编译器支持。结果如图~\ref{fig:appendix-survey-figure} 所示。
+    
+    \vspace{0.5em}
+    \noindent\textbf{洞察 2：RFL 基础设施已趋于成熟，当前重心转向安全抽象与驱动开发。}
+    
+    两个关键证据支持这一判断：
+    
+    \begin{itemize}
+      \item 随时间推移，Kbuild 补丁占比明显减少，表明基础构建已完成；
+      \item 安全抽象层相关代码占比从 20\% 上升至 60\%，成为新阶段主力。
+    \end{itemize}
+    
+    值得注意的是，RFL 启动半年后提交数量激增，原因是社区修复了 pinned 对象初始化中的不安全代码，替换了早期用于 gpio\_pl061 与 bcm2835\_rng 驱动的 unsafe 实现。
+    
+    \paragraph{（3）时间趋势分析}
+    
+    为观察 RFL 随时间的演进，我们将提交与邮件交流映射至时间轴，并标注 PR 审查时长，如图~\ref{fig:appendix-survey-figure} 所示。
+    
+    \vspace{0.5em}
+    \noindent\textbf{洞察 3：RFL 的发展瓶颈在于审查，而非开发。}
+    
+    从图中可以看到：虽然提交数量在早期迅速增长后趋于平稳，邮件讨论数量持续上升，表明社区活跃度在增强。然而，PR 审查速度明显放缓：2023 年上半年 PR 平均审查时间为 280 小时，是三年前的 200 倍。
+    
+    这说明 RFL 的代码产出速度远超其“消费”速度，即审查与合并过程滞后。这一结论也可从代码比例侧面验证：待审/提交代码量是已合入代码的 13 倍。
+    
+    造成审查瓶颈的原因有三：
+    
+    \begin{enumerate}
+      \item \textbf{审查人才稀缺}：能够同时理解 Rust 与内核的审查者数量严重不足，这在邮件列表中多次被提及 \cite{27,29}；
+      \item \textbf{协作机制不匹配}：RFL 社区与内核子系统社区在响应时间与审查周期上存在显著差异 \cite{28}；
+      \item \textbf{依赖性死锁}：子系统社区不愿审查缺乏驱动例证的安全抽象补丁，反之，缺乏抽象层又使 RFL 社区无法开发驱动 \cite{39}。
+    \end{enumerate}
+    
+    值得欣慰的是，RFL 正逐步被内核主流社区接受。近期发布的 NVMe、NULL block、V4L2 与 e1000 等驱动均由传统 Linux 开发者推动，这表明融合正在稳步推进。
+    
+    \subsection{通过安全抽象推进内核 Rust 化}
+    
+    安全抽象是实现 Linux 内核 Rust 化的核心机制，同时也是 RFL 代码中占比最大的一类（见第 3.1 节）。顾名思义，该抽象层的目标是安全地将 C 编写的内核扩展为可由 Rust 驱动访问的结构：它对内核的数据结构与接口进行封装，从而在调用过程中仍能保证内存安全与线程安全。
+    
+    \paragraph{挑战：驯服内核的编程惯例}
+    
+    为构建安全抽象层，RFL 首先将 C 内核中的结构体与接口转换为 Rust 风格，并通过接口包装导出给驱动程序（见第 2 节）。尽管该过程看似直接，但其面临一个核心挑战 —— \textbf{如何用 Rust 的安全机制驯服 C 内核的编程范式}？
+    
+    例如，内核大量使用类型转换、指针运算与位操作等，这些习惯与 Rust 的理念相悖。为此，RFL 不仅引入多种 workaround，对内核状态进行系统化管理，甚至还推动语言本身的发展，以适配内核环境。
+    
+    \paragraph{转换内核数据结构}
+    
+    RFL 借助 \texttt{bindgen} 自动生成 C 内核结构体的 Rust 绑定。该转换基于规则驱动，遵循语法导向，如表~\ref{tab:appendix-survey-table} 所示。例如，C 中的 \texttt{uint32\_t} 被映射为 Rust 中 \texttt{core::ffi::c\_uint}，即 \texttt{u32} 的别名。
+    
+    然而，并非所有 C 类型都能无缝映射至 Rust。我们发现，这种不兼容主要集中在内核中用于手动管理内存布局的语言特性上。
+    
+    \vspace{0.5em}
+    \noindent\textbf{洞察 4：内核对内存精细控制的主动性与 Rust 的哲学冲突，给 RFL 带来额外开销。}
+    
+    \begin{itemize}
+      \item \textbf{模拟位域与联合体}：内核广泛使用位域与联合体以节省内存，例如 e1000 驱动中用一个字表示 4 个链路状态标志。由于 Rust 原生不支持此类内存访问模式，RFL 使用字节数组模拟位域，并通过访问器函数实现位操作。对于联合体，RFL 定义 \texttt{\_\_BindgenUnionField} 结构，以匹配 C 中联合体的内存布局。这些方案都依赖 \texttt{transmute} 操作，因此被包裹在 \texttt{unsafe} 块中，会带来二进制文件体积膨胀的问题（详见第 4.2 节）。
+      
+      \item \textbf{属性支持不完全}：内核常依赖 \texttt{packed} 与 \texttt{aligned} 等属性以优化局部性，如 \texttt{task\_struct} 将调度字段集中在一条缓存行中。尽管 Rust 支持 \texttt{repr(C)} 属性，\texttt{bindgen} 在处理复杂属性时仍可能出错 \cite{7,9}，且不支持如 BTF tags \cite{21} 等较冷门的属性。另外，内核中用于防御内存漏洞的 \texttt{randomize\_layout} 属性被 RFL 忽略，因 Rust 自带的所有权与边界检查机制已能达成类似目标。
+    \end{itemize}
+    
+    尽管 \texttt{bindgen} 所生成的绑定具有与 C 结构相同的内存布局，出于安全考虑，这些绑定仍不能直接暴露给驱动调用，因为它们包含了大量原始指针（\texttt{*mut}）。Rust 无法自动校验这些指针的生命周期，因此需显式指定其所有权。
+    
+    \vspace{0.5em}
+    \noindent\textbf{洞察 5：RFL 利用辅助类型将内核数据结构的管理职责转移至 Rust，而操作职责仍由内核实现。}
+    
+    RFL 借助以下两种关键机制实现安全封装：
+    
+    \begin{itemize}
+      \item \textbf{使用 Type 与 Deref 强制类型转换}：通过组合 Type 系统与 \texttt{Deref} 强制转换机制，RFL 限制对嵌入内核结构体的内存访问。例如某些设备结构体中包含 \texttt{void *} 指针用于存储设备特定数据，RFL 为此类结构实现 \texttt{deref} trait，并显式转换为正确的类型，防止滥用指针解引用或 \texttt{transmute}。
+      
+      \item \textbf{结构体生命周期自动管理}：RFL 引入了 \texttt{ScopeGuard}、\texttt{ARef} 与 \texttt{opaque} 三种底层类型，并绑定到辅助类型上，从而实现内核结构体生命周期自动管理。例如：当 \texttt{Task} 生命周期结束时，\texttt{ScopeGuard} 会调用其 \texttt{drop} trait 自动释放资源；\texttt{ARef} 则在引用计数增加/减少时自动调用 \texttt{get}/\texttt{put} 操作，替代原本需要手动维护的 \texttt{get\_task}/\texttt{put\_task} 调用。
+    \end{itemize}
+    
+    这种机制也适用于锁机制。RFL 重写了 \texttt{mutex} 与 \texttt{spinlock} 的底层封装，管理方面采用 \texttt{Deref} 实现安全访问，资源释放由 \texttt{ScopeGuard} 负责，而锁操作本身仍调用内核原有接口。
+    
+    \paragraph{包装内核函数}
+    
+    类似结构体的转换，RFL 也生成内核函数的 FFI 绑定，并进一步用 Rust traits 将其纳入安全抽象层。我们总结了三种主要包装方式：
+    
+    \begin{itemize}
+      \item \textbf{函数封装为结构体方法}：RFL 将与某结构相关的内核函数组合为该结构体的方法，采用面向对象编程（OOP）模式。例如，将 \texttt{queue\_work\_on}、\texttt{\_\_INIT\_WORK\_WITH\_KEY} 等函数统一封装到 \texttt{Queue} 结构体中，提升可读性与调用安全性。
+      
+      \item \textbf{函数指针封装为 Trait}：内核中大量函数仅作为结构体的回调使用。RFL 将这些函数作为 trait 接口的成员，指定其类型边界与所属结构体，防止类型转换错误所引发的漏洞 \cite{16}。
+      
+      \item \textbf{内联函数与宏的替代封装}：由于 Rust 当前尚不支持便捷地 inline FFI 函数，RFL 使用普通非内联函数封装静态内联函数。对于函数宏，RFL 倾向于用辅助函数替代而非 Rust 宏重写，主要原因是避免维护两套接口标准（C 与 Rust）所带来的不稳定性 \cite{82}。
+    \end{itemize}
+    
+    \subsection{Rust 驱动的实现实践}
+    
+    随着编程范式由 C 向 Rust 转变，驱动开发中的核心关注点也从“数据布局”转向“数据所有权”管理。本节从开发者视角出发，探讨这种范式转变对设备驱动开发的实际影响。
+    
+    \paragraph{第一步：设备探测（Device Probing）}
+    
+    开发者需要实现设备探测回调函数，在该函数中为设备数据分配内核资源，并在需要时注册中断处理器（IRQ handler）。与 C 语言驱动开发相比，Rust 中的关键区别在于：开发者必须显式标注设备数据的所有权类型，即这些数据将如何被使用、由谁拥有。
+    
+    例如，若某数据需要被多个线程共享，则需使用 \texttt{Arc} 类型；若该数据需保持不可移动以与 C 端共享，则使用 \texttt{Pin} 类型。更复杂的是，这些所有权注解可能是嵌套的，难以理解。
+    
+    例如，在 e1000 网络驱动中，其接收环形缓冲区由一个包含接收描述符数组的结构组成，并由自旋锁保护，其类型被声明为：
+    
+    \begin{quote}
+    \texttt{Pin<Box<SpinLock<Box<Ring<RxDesc>>>>>}
+    \end{quote}
+    
+    其中每一层嵌套类型都需调用各自的初始化器，如 \texttt{Pin::from}、\texttt{Box::try\_new} 等。
+    
+    \paragraph{第二步：实现驱动功能}
+    
+    随后，开发者需实现驱动框架所要求的标准函数。例如，在网络设备驱动中，必须实现 \texttt{net\_device\_ops} 接口中的 \texttt{ndo\_open} 与 \texttt{ndo\_start\_xmit} 回调函数。
+    
+    这一阶段的工作与 C 驱动开发相似，开发者需根据硬件手册实现核心的设备逻辑，将设备引导至所期望的运行状态。然而，在内核空间编程中，Rust 引入了以下新挑战：
+    
+    \begin{itemize}
+      \item \textbf{动态数组实现复杂}：C 驱动中常通过指针实现可调整大小的数组（如页数组），而在 Rust 中，开发者需增加多层封装并为其实现 \texttt{dyn\_num} trait。以 RROS 中的实际示例（图~6）为例，实现同样功能的 Rust 代码行数增加了 83\%，导致目标文件体积显著膨胀。更多细节将在第 4.2 节中展示。
+    
+      \item \textbf{上下文语义需开发者自行保证}：Rust 的安全规则并不会检查函数运行的上下文环境（如 atomic vs sleepable），无论是编译期还是运行时。因此，开发者需自行判断当前函数所处的上下文，并确保其线程安全性。
+    \end{itemize}
+    
+    \paragraph{第三步：设备清理（Cleanup）}
+    
+    当设备被移除或初始化失败时，驱动需清理设备状态。在传统的 C 驱动中，开发者往往使用 \texttt{goto} 指令将流程跳转至集中资源释放逻辑。而在 Rust 驱动中，该过程由抽象层实现并通过 Rust 的 \texttt{Drop} trait 自动完成：当生命周期结束或出现错误时，Rust 会自动释放资源，极大减轻开发者的负担。
+    
+    \vspace{0.5em}
+    \noindent\textbf{洞察 6：}
+    
+    \begin{quote}
+    编写安全 Rust 驱动的最大挑战在于调和 Rust 的严格性与内核传统编程习惯之间的冲突；而这种挑战往往被 RFL 与 Linux 社区所忽视。
+    \end{quote}
+    
+    \section{RQ2：RFL 是否达成预期目标？}
+    
+    本节基于内核社区在 RFL 启动初期所设立的目标（见表~\ref{tab:appendix-survey-table}），围绕以下三个问题展开分析：
+    
+    \begin{itemize}
+      \item Rust 是否让 Linux 更安全？（第 4.1 节）
+      \item Rust 是否引入了额外开销？（第 4.2 节）
+      \item Rust 是否改善了内核开发体验？（第 4.3 节）
+    \end{itemize}
+    
+    \subsection{RFL 让 Linux 更具安全保障能力}
+    
+    \subsubsection*{方法概述}
+    
+    我们主要关注 RFL 驱动与内核模块中的 bug 报告与 \texttt{unsafe} 代码块使用情况。研究逻辑如下：RFL 的安全性高度依赖于 Rust 语言自身的安全机制，而这些机制具体体现在“消除驱动中所有 \texttt{unsafe} 块”与“仅使用安全抽象 API”上。因此，若存在安全漏洞，必然可从这两处切入。
+    
+    我们首先收集了已提交（staged）与已合入（merged）的 RFL 代码中的所有 bug 报告与安全相关的代码审查记录（参见第 3.1 节）。根据 RFL 问题标签分类方法 \cite{66}，我们将 bug 分为编译错误与语义安全错误；例如死锁 \cite{53} 与“atomic 上下文中调用可休眠函数” \cite{18} 等并发问题，归类为语义错误。
+    
+    随后，我们审查了主线仓库中的所有 RFL 驱动程序与 Rust 内核 crate，并分析其中 \texttt{unsafe} 代码块的使用情况。
+    
+    \subsubsection*{结果分析}
+    
+    我们共发现 25 个 bug，分布如下：
+    
+    \begin{itemize}
+      \item 15 个出现在 Linux 主线合入代码中；
+      \item 10 个来自 RFL 的 staging 分支。
+    \end{itemize}
+    
+    其中，主线中的 11 个 bug 为编译错误，4 个与安全抽象相关。编译错误多为工具链不兼容、Kbuild 与 \texttt{rustc} 配置不匹配、内核配置问题等技术性问题，不涉及安全漏洞。
+    
+    在语义错误中，6 个出现在安全抽象层中，破坏了内存安全；另有 3 个破坏了线程安全。
+    
+    值得注意的是，我们尚未在主线中发现任何 RFL 驱动使用 \texttt{unsafe}，主要因为目前主线仅合入了一个约 130 行的小型驱动 \cite{50}。但在 RFL 邮件列表中已提交的驱动中，确实存在多处 \texttt{unsafe} 使用案例，详见表~\ref{tab:appendix-survey-table}。
+    
+    \subsubsection*{后续分析与洞察}
+    
+    \vspace{0.5em}
+    \noindent\textbf{洞察 7：RFL 使 Linux 更“可实现安全”，但仍难以实现完全安全。}
+    
+    我们对 RFL 安全性的结论与历史上的 Multics 安全审计报告如出一辙 \cite{88}，理由如下：
+    
+    \begin{enumerate}
+      \item \textbf{Rust 的语言机制构建了内核安全的基石}。Rust 的类型系统与所有权机制显著帮助开发者规避内存与并发类错误。更进一步，如 \texttt{klint} \cite{31} 与 \texttt{RustBelt} \cite{86} 等工具为内核开发引入了自动化审计能力，大大缩小了攻击面，降低了开发者的安全负担。
+    
+      \item \textbf{\texttt{unsafe} 是不可避免的，但漏洞是可选择的}。我们在多种主流驱动中均发现了 \texttt{unsafe} 使用，其难以完全消除：
+    
+      \begin{itemize}
+        \item 一方面，内核需要对内存与硬件进行完全控制，这就不可避免地需要绕过 Rust 的所有权检查机制。例如，内核中使用内联汇编管理 TLB 与 memory barrier、使用裸指针读写 MMIO 寄存器、采用联合体与位域等结构（详见第 3.3 节）。
+        \item 另一方面，社区有时会出于工程考量妥协于 \texttt{unsafe} 实现。例如内存初始化接口 \texttt{pin-init} 被 Rust checker 标记为不安全，但仍被保留在安全抽象层中超过两年，直到近期才经多轮争论后被修复 \cite{12,49,57}。
+      \end{itemize}
+    
+      我们承认：\texttt{unsafe} 本身不必然引发漏洞，但其涉及的使用场景（如 MMIO 操作）存在根源性的风险，难以完全消除。
+    
+      \item \textbf{Bug 并未消失，而是“隐藏得更深”}：
+    
+      \begin{itemize}
+        \item 一方面，即便驱动只使用安全抽象层，其底层调用的内核函数仍可能存在 bug；
+        \item 另一方面，Rust 编译器虽能检测内存错误，却无法发现语义错误。例如 C 版 binder 驱动中存在 use-after-free 漏洞；用 Rust 实现后，虽不再崩溃，却可能引发映射错误，造成内存使用位置异常，而该问题无法被 Rust 编译器发现，只能依靠熟悉内核与 Rust 的专家排查。
+      \end{itemize}
+    \end{enumerate}
+    
+    \subsection{Rust 是否引入额外开销？}
+    
+    本节评估了 RFL 驱动与传统 C 语言内核驱动之间的性能差异与资源消耗。我们的研究表明：Rust 驱动的二进制体积显著增加；其运行时性能虽整体接近 C，但表现波动较大，依赖于具体驱动与配置。
+    
+    \subsubsection*{实验设置}
+    
+    我们从 RFL 的 PR 与仓库中收集了 6 个代表性驱动，覆盖多种 I/O 功能（如网络与存储）：
+    
+    \begin{itemize}
+      \item 其中 \textbf{NVMe} 与 \textbf{binder} 被认为是首批将合入 Linux 主线的 RFL 驱动；
+      \item 另外 2 个为教学用途的示例驱动：\textbf{gpio} 与 \textbf{sem}，常用于探索 Rust 与 C 的实现差异；
+      \item \textbf{e1000} 和上述 2 个 toy 驱动是功能实现最完整的；
+      \item 其余驱动仅实现了部分功能。
+    \end{itemize}
+    
+    对于每个具备对应 C 实现的 Rust 驱动，我们编译两者，比较二进制大小，并运行参考文献 [97] 中定义的基准测试，模拟其典型工作负载。实验设置详见表~\ref{tab:appendix-survey-table}。
+    
+    \subsubsection*{二进制体积}
+    
+    如图~\ref{fig:appendix-survey-figure} 所示，功能完整的 Rust 驱动比其 C 对应版本明显更大：
+    
+    \begin{itemize}
+      \item binder 驱动体积为 C 的 1.2 倍；
+      \item gpio 为 2.4 倍；
+      \item sem 为 1.9 倍。
+    \end{itemize}
+    
+    进一步分析显示，\textbf{Rust 的 text 段代码体积显著膨胀（99\%）}，主要原因在于：
+    
+    \begin{itemize}
+      \item Rust 引入了泛型编程、边界检查与生命周期管理等机制；
+      \item 即便是简单调用内核函数的 wrapper，Rust 生成的代码体积也增加了 33\%。
+    \end{itemize}
+    
+    值得注意的是：Rust 实现的 binder 驱动体积增长较少，原因在于其大量使用了带 \texttt{unsafe} 的函数指针而非泛型，虽然牺牲了一定的安全性，但也减少了编译膨胀。
+    
+    通常部署前会移除调试信息，但在嵌入式系统中，调试模式下的额外资源消耗可能不可承受，详见附录 §B。
+    
+    \subsubsection*{性能表现}
+    
+    整体来看，大多数 Rust 驱动在性能上与 C 驱动相当（20\% 以内差距）。但也存在：
+    
+    \begin{itemize}
+      \item 少数场景中 Rust 明显劣于 C；
+      \item 个别场景中 Rust 出现反超。
+    \end{itemize}
+    
+    具体分析如下：
+    
+    \begin{itemize}
+      \item \textbf{e1000}：在 ping 延迟方面，Rust 驱动比 C 慢了约 11 倍（图~8）。原因在于 Rust 驱动未实现类似预取等优化机制。
+      \item \textbf{binder}：两者性能差距小于 10\%，基本持平。
+      \item \textbf{存储类驱动（NVME 与 NULL block）}：表现波动大，根据配置（如任务数与 batch 大小）在 -61\% 到 +67\% 区间波动（见图~9 与图~10）。我们观察到 Rust 更适合较小的任务数与块大小，可能因为其结构体更小，更易适配缓存行。
+    \end{itemize}
+    
+    我们进一步借助 \texttt{vtune} 与 \texttt{ftrace} 等内核工具进行了微基准测试，总结以下潜在影响性能的原因：
+    
+    \vspace{0.5em}
+    \noindent\textbf{Rust 驱动可能更慢的原因：}
+    \begin{itemize}
+      \item \textbf{锁粒度较粗}：尽管 Rust 通过语言机制提升线程安全性，但并未简化高性能并发控制的实现难度；
+      \item \textbf{运行时边界检查增加开销}：尤其在数组访问上，边界检查影响显著。此前已有研究表明 Rust 程序开销可达 C 的 2.49 倍 \cite{110}；
+      \item \textbf{模拟位域操作低效}：见 §3.2，Rust 通过数组实现位操作，并叠加边界检查；
+      \item \textbf{指针过多导致缓存/TLB/分支失效率增加}：Rust 常使用智能指针共享所有权，影响缓存命中率。
+    \end{itemize}
+    
+    \vspace{0.5em}
+    \noindent\textbf{Rust 驱动可能更快的原因：}
+    \begin{itemize}
+      \item \textbf{结构体尺寸更小}：使用智能指针代替嵌套成员，使得结构体体积小于 C 对应实现。工具 \texttt{pahole} 显示 Rust 结构体使用的缓存行更少；
+      \item \textbf{未实现全部功能}：部分路径被省略，导致部分指标更优。
+    \end{itemize}
+    
+    \vspace{0.5em}
+    \noindent\textbf{洞察 8：性能没有免费的午餐 —— 成败仍取决于开发者本身！}
+    
+    \subsection{Rust 是否改善了内核开发体验？}
+    
+    本节指出，Rust 显著提升了内核代码的可读性与质量，并吸引了更多新手开发者参与社区建设。
+    
+    \subsubsection*{代码质量与可读性提升}
+    
+    我们采用两个标准衡量软件质量：文档覆盖率与每千行代码的 CI 错误数量（CI errors per KLoC），参考文献 \cite{76,106}。
+    
+    \begin{itemize}
+      \item 对于文档覆盖率，我们检查所有通过 \texttt{EXPORT\_SYMBOL} 与 \texttt{EXPORT\_SYMBOL\_GPL} 导出的 API。根据 Linux 社区约定 \cite{43}，这些接口都应包含文档说明。
+      \item 对于 CI 错误，我们统计了来自 LKP、Syzbot \cite{41} 与 KernelCI \cite{38} 的结果。
+    \end{itemize}
+    
+    我们将 RFL 与两个同样新兴且活跃的内核子系统进行对比：\textbf{ebpf} 与 \textbf{io\_uring}。如表~\ref{tab:appendix-survey-table} 所示：
+    
+    \begin{itemize}
+      \item RFL 的代码文档覆盖率为 100\%，显著优于 ebpf 与 io\_uring；
+      \item RFL 的平均 CI 错误数量比 ebpf 少 49\%，比 io\_uring 少 68\%。
+    \end{itemize}
+    
+    这种提升主要归因于两方面：
+    
+    \begin{enumerate}
+      \item \textbf{Rust 支持文档与代码绑定}：RFL 借助 \texttt{rustdoc} 与 lints 强制为所有或指定接口添加文档，而传统内核开发则依赖非正式约定或人工审查，导致许多函数缺乏文档。例如 \texttt{io\_uring\_cmd\_complete\_in\_task}（由 \texttt{EXPORT\_SYMBOL\_GPL} 导出）缺乏说明，导致开发者将其与 \texttt{io\_uring\_cmd\_done} 混淆，引发死锁问题 \cite{30}。社区甚至将“缺乏文档”视为 Linux 的首号 bug \cite{2}。
+      
+      \item \textbf{Rust 内建测试机制支持 PR 前验证}：与内核现有的 KUnit \cite{26} 与 LKP \cite{42} 在合并后执行不同，Rust 允许通过 \texttt{\#cfg(test)} 属性内联测试代码，结合 GitHub CI，每次提交 PR 时即可自动运行，从源头上减少错误传播，体现出更高的代码质量。
+    \end{enumerate}
+    
+    \subsubsection*{吸引更多新生开发者加入内核社区}
+    
+    我们将 RFL 开发者背景与其他内核子系统对比（ebpf、io\_uring）以及传统的 \texttt{netdev} 子系统，衡量其“开发经验”分布。方法借鉴自 \cite{52}：基于提交者首次提交在 Linux git 历史中的时间，将其分为：
+    
+    \begin{itemize}
+      \item \textbf{新手}（0–24 个月）；
+      \item \textbf{熟手}（24–120 个月）；
+      \item \textbf{资深}（120 个月以上）。
+    \end{itemize}
+    
+    结果如图~\ref{fig:appendix-survey-figure} 所示：
+    
+    \begin{itemize}
+      \item RFL 中新手开发者占比最高达 \textbf{58\%}，比 ebpf（39\%）、io\_uring（38\%）与 netdev（29\%）均高出近 20–30 个百分点；
+      \item 更值得注意的是，其中 29 名开发者此前从未提交过任何一行 C 语言代码。
+    \end{itemize}
+    
+    这一现象说明：Rust 的引入大大降低了“参与感”的门槛，使得一批原本未接触 C 的开发者开始参与内核生态构建。
+    
+    \subsubsection*{但新手开发者尚未融入内核主干开发}
+    
+    尽管 Rust 吸引了大量新开发者，但我们发现：
+    
+    \begin{itemize}
+      \item 他们的贡献主要集中于 Rust 工具链与 crate 的构建；
+      \item 并未直接参与内核模块与驱动的核心代码开发。
+    \end{itemize}
+    
+    相反，在我们分析的 6 个 RFL 驱动中（见表~\ref{tab:appendix-survey-table}），5 个主要由传统内核社区的开发者贡献。这表明：
+    
+    \begin{quote}
+    \textbf{新老开发者之间仍存在割裂，而 Rust 尚未真正降低内核编程的本质门槛。}
+    \end{quote}
+    
+    \section{RQ3：有哪些经验与教训？}
+    
+    本节总结了在开展本次实证研究过程中获得的关键经验与建议，分别面向开发者与 RFL 社区提出具体指导。
+    
+    \subsection*{面向开发者：构建与使用更安全实用的 RFL 驱动}
+    
+    为了提升 RFL 与 Rust 驱动的安全性与可用性，开发者应注意以下三点：
+    
+    \begin{enumerate}
+      \item \textbf{不要将 Rust 的内建检查机制视为“银弹”}。如第 4.1 节所示，Rust 编译器无法发现语义类错误，因此应结合更全面的分析工具（如 \texttt{RustBelt} \cite{86} 与 \texttt{miri} \cite{54}）进行验证。
+      
+      \item \textbf{从“所有权”视角构建安全的内核抽象层与资源管理机制}，而非传统的“内存操作”视角。在编码前，必须清晰规划结构体之间的所有权关系，否则后期因误用智能指针导致的 bug 修复代价将极其高昂。
+      
+      \item \textbf{接受 \texttt{unsafe} 作为最后的折中手段}。正如第 4.2 节所示，若一味追求使用智能指针与泛型实现安全性，常常会导致巨大的内存开销与性能损耗。在确保局部安全的前提下，开发者可选择使用 \texttt{unsafe} 来规避这类问题。
+    \end{enumerate}
+    
+    \subsection*{面向社区：推动 RFL 的子系统扩展应当有所侧重}
+    
+    由于开发 RFL 驱动/子系统需投入大量工程精力与长期维护，因此合理确定优先级至关重要。为此，我们提出一套量化优先级的方法：
+    
+    \begin{quote}
+    \textbf{将“适合被 Rust 化”的价值建模为该子系统中可由 Rust 安全机制修复的漏洞总数与其代码规模（LoC）之间的比例。}
+    \end{quote}
+    
+    该方法的直觉基础也得到了社区认可 \cite{35}：\textbf{代码越少，Bug 越多，Rust 化的性价比越高}。
+    
+    为评估各子系统的 Rust 化价值，我们遍历了每个驱动的 git 历史，收集其中所有安全相关问题，手动筛选其中可由 Rust 所修复的内存与线程安全问题（参见第 2 节）。我们共分析了来自 79 个子系统的 2500 多个驱动，结果如图~\ref{fig:appendix-survey-figure} 所示：
+    
+    \begin{itemize}
+      \item 平均每个子系统包含 1.3 个安全 bug/每千行代码；
+      \item 不同子系统之间的 bug 密度差异显著。
+    \end{itemize}
+    
+    值得注意的是：
+    
+    \begin{itemize}
+      \item \textbf{linux-block 子系统的 Rust 化价值最高}：在其修复的 438 个 bug 中，包含 113 个数据竞争错误与 98 个悬垂指针错误。该子系统应优先被 Rust 化。欣喜的是，社区已证实我们的建议，并使用 RFL 重写了 null block 驱动（见第 4.2 节）。
+      
+      \item \textbf{linux-ext4 子系统同样具备高优先级}：已有对虚拟文件系统（VFS）的安全抽象提案 \cite{56}，并出现多个基于 Rust 的文件系统实现 \cite{32,36}。因此，我们期待 RFL 在 ext4 子系统上的进一步拓展，特别是对其内存/线程安全问题的修复。
+    \end{itemize}
+    
+    \section{相关工作}
+    
+    \subsection*{理解真实世界中的 Rust 使用}
+    
+    已有文献通过分析流行的 Rust 项目（如 Tock \cite{94}、TiKV \cite{6} 和 Redox \cite{5}）研究了 \texttt{unsafe} 的使用情况。一些工作专注于探索 \texttt{unsafe} 使用场景及其背后的动因 \cite{71,79,83,111}，为 Rust 开发者如何更合理地使用 \texttt{unsafe} 区块提供了指导。
+    
+    还有研究聚焦于用户程序与 Rust 编译器中的 bug，深入探讨其根源 \cite{103,107,108}。而本研究则专注于 RFL 项目，从 Rust 语言如何与 Linux 内核代码库融合的视角出发，总结关键洞察与经验，并检验 RFL 是否达到了最初设定的安全性提升与零开销抽象等目标。
+    
+    \subsection*{Rust 带来的开销}
+    
+    尽管 Rust 被设计为与 C 同等高效，但已有研究尝试量化其开销 \cite{73,81,110}。这些研究通常在 C 与 Rust 中实现相同程序，并对比其性能差异。然而，它们使用的基准多为简单程序（例如长度不足 100 行的算法示例），难以反映现实中复杂程序（尤其是操作系统）的运行特征。
+    
+    文献 \cite{81} 实现了一个非平凡的 UDP 驱动并在 Rust 与 C 中进行对比，从端到端角度提供分析。而本研究则更为全面，涵盖了运行时指标与目标文件体积等方面，评估 Linux 驱动在 Rust 与 C 实现下的差异。
+    
+    \subsection*{基于 Rust 的操作系统}
+    
+    近年来，Rust 成为系统软件开发的热门语言，业界与学界均在探索使用 Rust 编写新型操作系统与内核，适用于嵌入式设备与个人计算机等多种场景 \cite{73,92–95,99,101}。
+    
+    然而，这些工作大多聚焦于开发“全 Rust”内核的利弊，未涉及如何将 Rust 融入现有 C 代码库的过程。而将 Rust 引入已有大型项目（如 Linux）中，涉及抽象复用与语义适配，具有显著挑战与研究价值。因此，本研究所获得的经验，也可为后续开发基于 Rust 的内核提供有益参考。
+    
+    \subsection*{Rust 的语言增强与可用性提升}
+    
+    许多研究旨在让 Rust 更加安全且易用。例如，一些工作分析了阻碍 Rust 被广泛采用的因素，并提出了缓解学习曲线的建议 \cite{77,112}。
+    
+    另一些研究则关注于为 \texttt{unsafe} 区块提供防御性机制，包括：
+    
+    \begin{itemize}
+      \item 使用形式化验证方法确认 \texttt{unsafe} 使用的正确性；
+      \item 静态分析程序以检测潜在缺陷；
+      \item 为 \texttt{unsafe} Rust 提供沙箱隔离机制；
+    \end{itemize}
+    
+    代表性研究包括 \cite{72,74,86,89,91,98,100,104} 等。本研究对 Rust 与 Linux 的深度融合过程也提供了相关启示，未来有望推动更安全、可控的 \texttt{unsafe} 使用机制。
+    
+    \section{结论}
+    
+    本文系统性地研究了 RFL（Rust-for-Linux）项目——这是首个致力于将 Rust 引入 Linux 内核的开创性工作，并已逐步在社区中获得关注与发展。
+    
+    首先，我们从安全抽象层与 Rust 驱动的构建过程出发，分析了 RFL 的当前发展状况，揭示出 Rust 语言特性与内核编程习惯之间的深层张力。
+    
+    接着，我们进一步评估了 RFL 是否真正兑现了“构建更安全且零开销内核”的承诺。研究结果表明：
+    
+    \begin{itemize}
+      \item RFL 确实显著提升了内核的安全性；
+      \item 但某些潜在问题更加隐蔽，难以通过编译器检测；
+      \item 同时，Rust 与 Linux 的架构差异所带来的性能与开发开销依然难以完全避免。
+    \end{itemize}
+    
+    最后，本文总结了从 RFL 实证研究中获得的关键经验与教训，期望这些成果能够为后续 RFL 的开发与内核演进提供借鉴与参考。
+    
+    \chapter*{参考文献}
+    \addcontentsline{toc}{chapter}{参考文献}
+    
+    \begin{enumerate}
+      \item The static code analysis tool coverity scan results for Linux. \url{https://scan.coverity.com/projects/linux}, 2006.
+      \item Carla Schroder: Missing documentation is the \#1 bug in the Linux. \url{https://www.linuxtoday.com/blog/linux-bug-1-bad-documentation/}, 2009.
+      \item A minimal Linux kernel module written in Rust. \url{https://github.com/tsgates/rust.ko}, 2013.
+      \item Linus explained the documentation missing problem. \url{https://www.youtube.com/watch?v=bAop_8l6_cI&t=2275s}, 2015.
+      \item Redox is a Unix-like Operating System written in Rust. \url{https://gitlab.redox-os.org/redox-os/redox/}, 2015.
+      \item TiKV: an open-source distributed key-value database in Rust. \url{https://github.com/tikv/tikv}, 2016.
+      \item Bindgen issue: does not handle packed/aligned properly. \url{https://github.com/rust-lang/rust-bindgen/issues/1538}, 2019.
+      \item Why writing Linux Kernel Modules in Safe Rust. \url{https://www.youtube.com/watch?v=RyY01fRyGhM}, 2019.
+      \item Bindgen mishandles aligned typedefs. \url{https://github.com/rust-lang/rust-bindgen/issues/1753}, 2020.
+      \item The Barriers to in-tree Rust (LPC 2020). \url{https://lpc.events/event/7/contributions/804/}, 2020.
+      \item Linux kernel modules in Safe Rust. \url{https://github.com/fishinabarrel/linux-kernelmodule-rust}, 2021.
+      \item GitHub Issue: Safe initialization of pinned structs. \url{https://github.com/Rust-for-Linux/linux/issues/290}, 2021.
+      \item RFC for Rust support in Linux mailing list. \url{https://lore.kernel.org/rust-for-linux/20210414184604.23473-1-ojeda@kernel.org/}, 2021.
+      \item Official presentation in the Rust Meetup Linz. \url{https://www.youtube.com/watch?v=fVEeqo40IyQ}, 2021.
+      \item Linux CVE caused by data race. \url{https://www.cvedetails.com/cve/CVE-2022-3566/}, 2022.
+      \item Linux CVE caused by incorrect type casting. \url{https://www.cvedetails.com/cve/CVE-2018-5861}, 2022.
+      \item RFL bug due to Kbuild misconfig. \url{https://github.com/Rust-for-Linux/linux/issues/735}, 2022.
+      \item RFL bug: potential sleep-in-atomic-context. \url{https://lore.kernel.org/rust-for-linux/87r0ykny6w.fsf@wdc.com/T/#t}, 2022.
+      \item KMSAN: detecting use of uninitialized values. \url{https://docs.kernel.org/dev-tools/kmsan.html}, 2022.
+      \item Rust merged into Linux mainline. \url{https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=8aebac82933ff1a7c8eede18cab11e1115e2062b}, 2022.
+      \item RFL discards BTF\_TYPE\_TAG attribute. \url{https://github.com/rust-lang/rust-bindgen/issues/2244}, 2022.
+      \item Rust-for-Linux project GitHub repo. \url{https://github.com/Rust-for-Linux/linux/}, 2022.
+      \item Linux CVE: out-of-bound bug. \url{https://www.cvedetails.com/cve/CVE-2023-38429/}, 2023.
+      \item Linux CVE: use-after-free. \url{https://www.cvedetails.com/cve/CVE-2023-33288/}, 2023.
+      \item Linux CVE: double free. \url{https://www.cvedetails.com/cve/CVE-2023-28464/}, 2023.
+      \item Linux Kernel Unit Test framework. \url{https://kunit.dev/}, 2023.
+      \item Email: netdev reviewers lacking. \url{https://lore.kernel.org/rust-for-linux/CANiq72mDVQg9dbtbAYLSoxQo4ZTgyKk=e-DCe8itvwgc0=HOZw@mail.gmail.com/}, 2023.
+      \item Email: V4L2 community lacks RFL reviewers. \url{https://lpc.events/event/17/contributions/1430/}, 2023.
+      \item io\_uring deadlock fix via command confusion. \url{https://lore.kernel.org/lkml/20230525183607.1793983-55-sashal@kernel.org/}, 2023.
+      \item klint: kernel-specific Rust lints. \url{https://github.com/Rust-for-Linux/klint}, 2023.
+      \item PuzzleFS on RFL’s VFS. \url{https://lore.kernel.org/rust-for-linux/20230609063118.24852-1-amiculas@cisco.com/}, 2023.
+      \item Rewritten driver in RFL still contains bugs. \url{https://lwn.net/Articles/953116/}, 2023.
+      \item RFL violates no-duplication policy. \url{https://lpc.events/event/17/contributions/1501/}, 2023.
+      \item Rust-for-Linux collaboration guide. \url{https://rust-for-linux.com/contributing}, 2023.
+      \item KernelCI: distributed test system. \url{https://foundation.kernelci.org/}, 2023.
+      \item Deadlock: abstraction layer vs drivers. \url{https://lore.kernel.org/rust-for-linux/8e9e2908-c0da-49ec-86efb20fb3bd71c3@lunn.ch/}, 2023.
+      \item First Rust network PHY driver merged. \url{https://lore.kernel.org/rust-for-linux/170263322444.1975.17234929609368010648.gitpatchwork-notify@kernel.org/}, 2023.
+      \item Syzbot project homepage. \url{https://syzkaller.appspot.com/upstream}, 2023.
+      \item Intel Linux Kernel Performance (LKP). \url{https://www.intel.com/content/www/us/en/developer/topic-technology/open/linuxkernel-performance/overview.html}, 2023.
+      \item Kernel documentation guidelines. \url{https://docs.kernel.org/doc-guide/kernel-doc.html}, 2023.
+      \item LTO optimization for Rust kernel modules. \url{https://kangrejos.com/2023/Inlining%20and%20LTO%20for%20Rust%20Kernel%20Modules.pdf}, 2023.
+      \item Rust-for-Linux mailing list. \url{https://lore.kernel.org/rust-for-linux/}, 2023.
+      \item Rust-for-Linux community stats. \url{https://kangrejos.com/2023/}, 2023.
+      \item Rust ownership system. \url{https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html}, 2023.
+      \item pin-init patch for safe init. \url{https://github.com/Rust-for-Linux/linux/commit/90e53c5e70a69159ec255fec361f7dcf9cf36eae}, 2023.
+      \item ax88796b.c driver in Rust. \url{https://lore.kernel.org/rust-for-linux/20231213004211.1625780-5-fujita.tomonori@gmail.com/}, 2023.
+      \item The Rust Language homepage. \url{https://www.rust-lang.org/}, 2023.
+      \item Netdev developer statistics. \url{https://people.kernel.org/kuba/more-development-statistics}, 2023.
+      \item Deadlock bug in RFL. \url{https://github.com/Rust-for-Linux/linux/issues/998}, 2024.
+      \item Rust Miri: Intermediate Representation interpreter. \url{https://github.com/rust-lang/miri}, 2024.
+      \item Kernel Self Protection Project. \url{https://kernsec.org/wiki/index.php/Kernel_Self_Protection_Project}, 2024.
+      \item VFS safety abstraction in RFL. \url{https://lore.kernel.org/rust-for-linux/CY6W7MLYLYEI.1DX1F6OL9IIDV@suppilovahvero/T/#mbadc4049b874d7cc9621e0c4abced36ec4bf9e4b}, 2024.
+      \item pin-init discussion threads. \url{https://lore.kernel.org/all/?q=Rust+pin-init+API+for+pinned+initialization+of+structs}, 2024.
+      \item ASLR in memory layout. \url{https://en.wikipedia.org/wiki/Address_space_layout_randomization}, 2024.
+      \item Android binder in Rust. \url{https://github.com/Darksonn/linux}, 2024.
+      \item Linux Device Drivers, 3rd Ed. \url{https://lwn.net/Kernel/LDD3/}, 2024.
+      \item Kernel bug-handling documentation. \url{https://docs.kernel.org/process/index.html#dealing-with-bugs}, 2024.
+      \item e1000 driver in Rust. \url{https://github.com/fujita/rust-e1000}, 2024.
+      \item The eBPF Project. \url{https://ebpf.io/}, 2024.
+      \item GPIO driver in Rust. \url{https://github.com/Rust-for-Linux/linux/blob/rust/drivers/gpio/gpio_pl061_rust.rs}, 2024.
+      \item io\_uring GitHub. \url{https://github.com/axboe/liburing}, 2024.
+      \item GitHub Issue Labels in RFL. \url{https://github.com/Rust-for-Linux/linux/issues}, 2024.
+      \item Mac GPU driver in Rust. \url{https://github.com/AsahiLinux/linux/tree/gpu/rust-wip}, 2024.
+      \item Null block driver in Rust. \url{https://lore.kernel.org/rust-for-linux/20230503090708.2524310-1-nmi@metaspace.dk/}, 2024.
+      \item NVMe device driver in Rust. \url{https://github.com/metaspace/linux/tree/nvme}, 2024.
+      \item Semaphore driver in Rust. \url{https://github.com/Rust-for-Linux/linux/blob/rust/samples/rust/rust_semaphore.rs}, 2024.
+    \end{enumerate}
+    
+\end{translation}

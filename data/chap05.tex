@@ -1,0 +1,209 @@
+\chapter{网络管理组件的实验评估}
+
+为了验证本研究所设计的网络管理模块在宏内核架构下的功能完整性与性能表现，本文对其进行了系统性的测试与分析。本章将详述所采用的测试方法、用例构成与执行流程，并结合实验结果对网络组件的能力进行评估。
+
+\section{测试用例构成}
+
+本研究参考了操作系统竞赛中的标准测试体系，选取具有代表性和权威性的测试用例，以涵盖网络管理所涉及的多个关键功能点。测试用例从基础功能、系统兼容性到综合性能进行全方位覆盖，主要包括如下几类：
+
+\begin{itemize}
+  \item \textbf{Basic 基础功能测试：} 此类测试为手工编写的简单示例程序，通过系统调用直接与内核网络子系统交互。测试内容包括任务管理、文件管理、内存管理等基础操作，重点在于验证网络管理组件前置需要的其他基础模块对于系统调用的正确支持，确保基本功能的稳定性与可用性。
+  
+  \item \textbf{Libctest 标准库兼容测试：} 该测试集用于评估网络组件与 C 标准库中网络相关模块的交互兼容性。通过运行静态和动态的标准库测试程序，间接反映网络任务在系统中的执行正确性和资源调度效果，测试内容包括 socket 初始化、数据发送与接收、连接建立等。
+
+  \item \textbf{BusyBox 命令集测试：} BusyBox 是一款集成了多种常用 UNIX 工具的轻量级软件包，广泛用于嵌入式系统和资源受限环境。本测试通过执行一系列网络相关的 BusyBox 命令（如 \verb|wget|、\verb|ping| 等），评估网络组件在实际指令运行时的调度能力、资源占用情况以及响应时延，从而间接测量其对网络任务的支持能力与系统兼容性。
+
+  \item \textbf{iperf3:} 一款被广泛使用的网络带宽测试工具，支持 TCP、UDP 以及 SCTP 协议。其主要用于测量在不同协议及参数配置下 IP 网络所能达到的最大吞吐量。iperf3 允许用户精细化地调整测试参数（如窗口大小、发送缓冲区、并发连接数等），以评估组件在不同压力下的表现。
+
+  \item \textbf{netperf:} 一款经典的网络性能评估工具，专注于在多种协议（如 TCP、UDP）与 socket 接口层面进行端到端的性能测量。其主要应用于分析系统的协议栈效率、数据传输延迟及处理能力，适用于评估服务器在不同任务类型下的网络处理能力。
+
+\end{itemize}
+
+其中，iperf3 和 netperf 是网络性能测试的核心工具，能够提供详尽的带宽、延迟和吞吐量等指标，帮助我们全面评估 Starry-Next 网络子系统在不同负载下的表现。
+
+iperf3工具由美国能源部下属的 Lawrence Berkeley 国家实验室开发，具备如下特性：
+
+\begin{itemize}
+    \item 提供详细的带宽、丢包率、时延等测量指标；
+    \item 支持双向测试模式与 zero-copy 优化模式，可模拟极端条件下的传输性能；
+    \item 支持 JSON 格式输出，方便集成到自动化测试系统中；
+    \item 兼容主流类 Unix 平台（Linux、macOS、FreeBSD 等）。
+\end{itemize}
+
+在本实验中，iperf3 被用于验证网络管理组件在高负载 TCP 和 UDP 传输场景下的调度策略与资源利用率，并借助其输出的流量统计数据分析系统性能瓶颈。
+
+netperf 支持包括：
+
+\begin{itemize}
+    \item 测量 TCP 流吞吐量、UDP 报文处理速率；
+    \item 模拟请求-响应型应用负载，考察网络服务的延迟敏感性；
+    \item 可配置 payload 大小、测试持续时间、目标 CPU 核心等参数；
+    \item 与 netserver 配合实现客户端—服务端对测。
+\end{itemize}
+
+虽然其用户界面相对简洁，但 netperf 在学术界和工业界的网络性能研究中仍被广泛采用，具有良好的可移植性和高度可定制性。在本项目中，netperf 被用于辅助分析网络栈在不同调度模式与内核状态下的性能变化趋势，作为系统调优的重要参考。
+  
+测试平台支持本地运行和远程评测两种方式。在本地测试中，研究者可通过修改 Makefile 配置，指定不同的目标架构和测试脚本，实现对组件的定向测试。而在线上环境中，借助操作系统竞赛平台提供的 CI/CD 自动化评估服务，开发者仅需提交代码仓库地址，即可触发自动构建与测试流程，系统会返回各类用例的测试报告，便于持续集成和快速验证。
+
+为提升调试效率，在系统开发与测试过程中，广泛使用了日志机制与动态信息标注。开发者可在代码关键位置插入 \verb|info!| 宏，并结合修改运行脚本中的日志等级配置，实现调试信息的可视化输出。通过分析日志内容，可迅速定位功能异常、调度不当或资源泄露等问题，进而提高测试反馈的效率与准确性。图 \ref{fig:test_flow} 展示了测试用例的执行流程与日志输出示例。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/test_flow.jpg}
+    \caption{测试用例执行流程与日志输出示例}
+    \label{fig:test_flow}
+\end{figure}
+
+\section{通过本地编写的基础测例}
+
+在本研究过程中，为了验证网络管理组件在内核中的实际行为与系统调用实现的正确性，我在本地编写并执行了一系列针对最小功能单元的基础测例。这些测试程序聚焦于网络子系统中的核心系统调用，如 \texttt{socket}、\texttt{bind}、\texttt{connect}、\texttt{accept}、\texttt{sendto}、\texttt{recvfrom} 等，确保每个系统调用在脱离复杂上层应用的情况下也能单独运行，完成其应有的功能。
+
+与上节中提及的集成测试不同，这些基础测例采用了“由下至上”的开发思路，针对单一系统调用接口进行验证，避免因调用链中其他未完成组件的影响而导致测试失败。例如，为测试 \texttt{accept} 系统调用的正确性，首先必须确保 \texttt{socket}、\texttt{bind} 和 \texttt{listen} 已成功实现并通过测试，因为它们构成了 TCP 服务端连接建立的前置条件。
+
+为系统性厘清不同系统调用之间的依赖关系，我在设计测试流程前绘制了网络相关系统调用的调用依赖图。如图 \ref{fig:syscall_dependency} 所示，图中清晰地展示了各个系统调用之间的依赖关系。例如，\texttt{bind} 依赖于成功的 \texttt{socket} 创建操作；\texttt{connect} 则需要在 \texttt{socket} 成功后才能执行；而 \texttt{sendmsg} 和 \texttt{recvfrom} 则依赖于连接状态的建立。\texttt{connect} 依赖于成功的 \texttt{socket} 创建操作；\texttt{sendmsg} 和 \texttt{recvfrom} 又依赖于连接状态的建立；而更高阶的接口如 \texttt{sendmmsg} 和 \texttt{accept4} 则在基本调用之上提供批处理与额外选项支持。因此，只有在各个前置 syscall 成功运行的前提下，后续测试才具有实际意义。
+
+在具体实现中，例如针对 \texttt{getsockname} 与 \texttt{getpeername} 的测试，我编写了一个简洁的客户端-服务端通信程序，客户端连接后立即获取连接对端和本地地址信息，并打印结果验证其准确性；而为了测试 \texttt{setsockopt} 和 \texttt{getsockopt}，我分别设置并读取了发送缓冲区大小与 \verb|TCP_NODELAY| 选项，验证内核是否正确响应参数的更改。
+
+通过这些小而精的基础测例，不仅实现了各系统调用接口的功能验证，也为后续集成测试与性能测试奠定了稳定的运行基础。这种分层、逐步推进的测试方式，有效降低了调试难度，并提升了测试覆盖率和问题定位效率。
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/syscall_dependency.pdf}
+    \caption{网络相关系统调用的依赖关系图}
+    \label{fig:syscall_dependency}
+\end{figure}
+
+\section{通过 libctest 测试套件验证网络功能}
+在本研究中，为了全面验证 Starry-Next 网络子系统的功能完整性与兼容性，我们采用了操作系统竞赛中提供的 libctest 测试套件。libctest 是一套专门为操作系统开发设计的测试框架，包含了大量针对系统调用、文件操作、网络通信等方面的标准化测试用例。
+libctest 测试套件的核心优势在于其覆盖面广、测试用例丰富，能够有效验证网络子系统在不同协议（如 TCP、UDP）下的行为是否符合预期。通过运行 libctest 提供的网络相关测试用例，我们可以快速定位网络协议栈实现中的潜在问题，并确保其与 Linux 系统调用语义的一致性。
+在具体实施过程中，我们将 libctest 的 socket 相关测试套件集成到 Starry-Next 的构建流程中，并通过 QEMU 虚拟化环境运行测试。测试用例主要包括以下几个方面：
+\begin{itemize}
+    \item \textbf{Socket 创建与管理：} 测试套件验证了 socket 的创建、绑定、连接、监听、接受等基本操作是否符合预期，并检查套接字选项的设置与获取功能。
+    \item \textbf{数据发送与接收：} 包括对 TCP 和 UDP 套接字的数据发送（sendto、sendmsg）和接收（recvfrom、recvmsg）操作的测试，确保数据传输的正确性与可靠性。
+    \item \textbf{错误处理与异常情况：} 测试套件还覆盖了各种异常情况的处理，如无效参数、资源不足等，确保系统在异常情况下能够正确返回错误码。
+\end{itemize}
+测试用例的测试流程如下图 \ref{fig:libctest_flow} 所示。libctest 测试框架通过模拟各种网络操作场景，并对每个系统调用的返回值和行为进行验证：
+\begin{itemize}
+    \item \textbf{UDP服务端(s):} 绑定本地地址、设置接收超时、等待接收
+    \item \textbf{UDP客户端(c):} 向 s 指定地址发送数据 "x"
+    \item \textbf{TCP服务端(s):} 创建监听 socket，检查 CLOEXEC，接收连接
+    \item \textbf{TCP客户端(c):} 创建非阻塞 socket，发起连接请求
+    \item \textbf{TCP连接(t):} 服务端接收到的连接 socket
+\end{itemize}
+libctest 框架会自动比较实际输出与预期结果，生成详细的测试报告。
+通过运行 libctest 测试套件，我们发现 Starry-Next 网络子系统在大部分测试用例中表现良好，能够正确处理各种网络操作，并与 Linux 系统调用语义保持一致。然而，在某些特定情况下，如高并发连接或异常数据包处理时，仍存在一些边界情况需要进一步优化和调整。
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/libctest_flow.pdf}
+    \caption{libctest 测试套件的执行流程}
+    \label{fig:libctest_flow}
+\end{figure}
+
+\subsection{测试结果分析}
+
+本项目对网络子系统中的核心系统调用进行了全面的功能测试，涵盖了套接字创建、连接建立、数据收发、参数配置及连接关闭等典型操作路径。测试基于本地自编最小测例、libctest 测试框架、以及多种网络压力测试工具，采用逐层递进的测试策略，确保每一个系统调用都能在其最小功能上下文中独立运行，并返回预期结果。
+
+为量化测试覆盖范围，我们对 \texttt{testsuits-for-oskernel} 测试集中所有网络相关系统调用的调用频率进行了统计与分析。图 \ref{fig:syscall_stat} 展示了各类系统调用在测试过程中被触发的次数。可以看出，\texttt{socket}、\texttt{bind}、\texttt{connect}、\texttt{accept} 等基础功能在多种测试场景中均被频繁调用，调用量达到千次量级，说明这些基础网络功能已得到了充分验证与覆盖。
+
+相较之下，一些扩展接口如 \texttt{accept4}、\texttt{sendmmsg} 和 \texttt{sendmsg} 的调用次数相对较少，主要原因在于这类系统调用通常用于高性能或特定功能优化场景，尚未在主路径测试用例中广泛引入。未来可以考虑针对这些接口设计更具针对性的测例，以进一步提升测试的完整性与覆盖率。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.95\textwidth]{figures/syscall_stats_barplot.pdf}
+    \caption{各网络系统调用在测试中的调用次数统计}
+    \label{fig:syscall_stat}
+\end{figure}
+
+此外，完整统计数据与生成脚本已随本项目一并开源，读者可参考附录或项目仓库获取更详细的信息。
+
+表 \ref{tab:syscall_test_coverage} 列出了本项目中已覆盖的网络相关系统调用及其测试方式。目前，所有列出的系统调用均已通过本地测例的功能验证，测试结果稳定，未出现异常行为，表明网络管理组件的基本功能已具备良好的可用性与稳定性。
+
+\begin{table}[h]
+\centering
+\caption{网络系统调用功能测试覆盖情况}
+\label{tab:syscall_test_coverage}
+\begin{tabular}{ll}
+\toprule
+\textbf{系统调用} & \textbf{测试方式与验证要点} \\
+\midrule
+\texttt{socket}        & 创建 TCP/UDP 套接字，验证返回值与类型一致性 \\
+\texttt{bind}          & 套接字绑定地址，检查绑定状态与端口分配 \\
+\texttt{listen}        & TCP 套接字监听状态设定，结合 \texttt{accept} 联合验证 \\
+\texttt{accept}        & 接收连接请求，测试连接 socket 的创建与有效性 \\
+\texttt{connect}       & 客户端主动连接服务端地址，验证连接状态码 \\
+\texttt{getsockname}   & 获取本地绑定地址，验证端口、地址格式正确 \\
+\texttt{getpeername}   & 获取对端地址信息，测试对已连接套接字的读取 \\
+\texttt{sendto}        & 无连接 UDP 发送测试，配合 \texttt{recvfrom} 验证数据一致性 \\
+\texttt{recvfrom}      & 接收指定地址数据，验证数据长度与内容正确性 \\
+\texttt{sendmsg}       & 发送带有控制信息的消息，验证传输结构支持 \\
+\texttt{setsockopt}    & 设置套接字参数（如超时），读取验证生效 \\
+\texttt{getsockopt}    & 获取套接字当前参数，配合 \texttt{setsockopt} 双向验证 \\
+\texttt{shutdown}      & 优雅关闭连接，测试关闭后 socket 行为符合预期 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+% \subsection{性能测试}
+
+% \section{网络子系统测试环境与部署方案}
+
+% 本节围绕网络子系统在 Starry-Next 宏内核架构中的实现与测试展开，重点说明测试平台、测例配置与调试方法，旨在验证网络功能模块的正确性与稳定性，并为后续性能分析提供保障。
+
+% \subsection*{QEMU 平台部署与内核镜像构建}
+% Starry-Next 的网络测试工作基于 QEMU 虚拟化平台展开。QEMU 具备良好的多架构仿真能力，能够复现多种主流硬件网络环境。在本研究中，QEMU 被配置为虚拟网桥（tap）模式，并启用 virtio-net 驱动模拟真实网络设备，确保网络协议栈运行的完整性。我们使用了交叉编译工具链完成 Starry-Next 内核与用户态测试程序的构建，构建产物为包含内核与 init 应用的统一镜像文件，供 QEMU 加载运行。
+
+% \subsection*{调试工具链与调试流程}
+% 测试过程主要依赖两类工具：一是基于调试日志输出的 printf-style 追踪机制，二是结合 strace 工具监控用户态程序的系统调用行为。通过为网络相关系统调用打入 info!/warn! 等调试语句，可以实时追踪 socket 创建、绑定、发送、接收等操作是否正确触发。strace 则可进一步分析 recvfrom、sendto 等调用是否成功返回预期值，辅助定位可能存在的协议栈错误。此外，为确保测试程序与内核协同运行，我们设计了自动化启动脚本，用于统一启动网络守护进程、回环测试任务与性能采集工具。
+
+% \section{功能验证测试与自定义测例设计}
+
+% \subsection*{标准网络测例覆盖情况}
+% Starry-Next 当前网络模块已实现对 UDP 和 TCP 套接字的完整支持，兼容 Linux 系统调用语义。为验证其功能，我们复用了操作系统大赛中 libctest 提供的 \texttt{socket.c} 测例。该测例覆盖了如下接口：
+
+% \begin{itemize}
+%     \item \texttt{socket()}, \texttt{bind()}, \texttt{connect()}, \texttt{listen()}, \texttt{accept()};
+%     \item \texttt{sendto()}, \texttt{recvfrom()}, \texttt{setsockopt()}, \texttt{getsockname()};
+%     \item TCP 与 UDP 的创建与通信语义验证；
+%     \item SO\_RCVTIMEO、SOCK\_CLOEXEC 等选项行为测试。
+% \end{itemize}
+
+% 所有接口已在 starry-next 中完成封装并通过系统调用分发机制与内核协议栈对接。测试运行结果表明，系统能够完成数据报与连接型套接字的收发流程，且选项配置与阻塞行为表现与 Linux 系统保持一致。
+
+% \subsection*{自定义回环测例设计}
+% 为进一步验证网络协议栈底层行为，我们设计了若干自定义测例。其中回环测试使用 socketpair 创建本地双向通道，以评估协议栈在发送队列、接收缓存管理方面的准确性。另一个典型测例使用 UDP 发送数据包到 127.0.0.1 并尝试 recvfrom 验证内容一致性，测试片段如下：
+
+% \begin{verbatim}
+% int s = socket(AF_INET, SOCK_DGRAM, 0);
+% struct sockaddr_in sa = { .sin_family = AF_INET, .sin_port = htons(12345), .sin_addr = { .s_addr = htonl(INADDR_LOOPBACK) } };
+% bind(s, (struct sockaddr *)&sa, sizeof(sa));
+% sendto(s, "hello", 5, 0, (struct sockaddr *)&sa, sizeof(sa));
+% recvfrom(s, buf, sizeof(buf), 0, NULL, NULL);
+% \end{verbatim}
+
+% 运行该测例后，通过调试日志观察到数据包成功进入环回路径并由内核协议栈接收，确认了路由模块、套接字缓冲区与调度机制协同工作正常。
+
+% \section{网络性能评估与对比实验}
+
+% \subsection*{测试工具与指标选取}
+% 我们选取 \texttt{iperf3} 作为性能测试工具，对 Starry-Next 网络子系统的带宽、延迟和吞吐量进行定量评估。iperf 支持多种传输协议与参数配置，能够模拟高负载下的数据传输行为，并支持服务器与客户端模式。性能指标包括：
+
+% \begin{itemize}
+%     \item 吞吐量（Throughput）：反映单位时间内可传输的数据量；
+%     \item 延迟（Latency）：包括连接建立时间与数据传输延迟；
+%     \item 丢包率与重传次数：验证内核协议栈在拥塞环境下的稳定性。
+% \end{itemize}
+
+% \subsection*{实验场景与配置方案}
+% 测试分为本地回环通信与虚拟网卡跨主机通信两类。前者用于评估协议栈在理想条件下的性能极限，后者模拟真实网络环境下的表现。iperf 分别以 TCP、UDP 模式运行 10 秒传输任务，测试命令如下：
+
+% \begin{verbatim}
+% iperf3 -s    # 服务端
+% iperf3 -c 127.0.0.1 -t 10 -i 1 -u -b 100M  # UDP 客户端
+% \end{verbatim}
+
+% 所有测试运行于 QEMU 环境，配置 1 核 CPU，512MB RAM。测试过程中通过 \texttt{dmesg} 日志观察协议栈缓冲区使用情况与收发速率。
+
+% 初步测试结果显示，Starry-Next 在回环模式下的 UDP 吞吐量可达 85 Mbps，TCP 连接延迟控制在 2ms 以内，表现优于早期版本的 ByteOS。在高负载情况下，协议栈能够保持稳定处理能力，丢包率低于 0.5%。通过分析 socket 缓冲区满载前后的系统响应时间，验证了协议栈中阻塞、非阻塞语义处理的正确性。
+
+% \section*{小结}
+% 本章围绕 Starry-Next 网络子系统的功能正确性与性能表现展开测试分析。通过复用标准测例、自定义通信任务以及使用 iperf 工具进行性能评估，验证了网络模块对套接字、路由、缓冲区管理等机制的完整实现，且在吞吐与延迟方面达到预期性能目标。测试结果为后续在 ArceOS 上进行高性能网络栈部署提供了重要支撑。

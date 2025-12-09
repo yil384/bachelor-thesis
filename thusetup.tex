@@ -21,7 +21,7 @@
   % 标题
   %   可使用“\\”命令手动控制换行
   %
-  title  = {清华大学学位论文 \LaTeX{} 模板\\使用示例文档 v\version},
+  title  = {操作系统宏内核网络管理模块接口的设计与实现},
   title* = {An Introduction to \LaTeX{} Thesis Template of Tsinghua
             University v\version},
   %
@@ -67,7 +67,7 @@
   %
   % 姓名
   %
-  author  = {薛瑞尼},
+  author  = {林奕辰},
   author* = {Xue Ruini},
   %
   % 学号
@@ -78,12 +78,12 @@
   % 指导教师
   %   中文姓名和职称之间以英文逗号“,”分开，下同
   %
-  supervisor  = {郑纬民, 教授},
+  supervisor  = {戴桂兰, 助理研究员},
   supervisor* = {Professor Zheng Weimin},
   %
   % 副指导教师
   %
-  associate-supervisor  = {陈文光, 教授},
+  associate-supervisor  = {陈渝, 副教授},
   associate-supervisor* = {Professor Chen Wenguang},
   %
   % 联合指导教师
@@ -149,9 +149,71 @@
 % 算法
 \usepackage{algorithm}
 \usepackage{algorithmic}
+\usepackage{ctex} % 支持中文
+\usepackage{hyperref} % 支持链接
+\usepackage{graphicx} % 支持插图
+\usepackage{listings} % 代码块支持
+\usepackage{geometry}
+\usepackage{tikz}  % 流程图
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning}
+\tikzstyle{startstop} = [rectangle, rounded corners, minimum width=3cm, minimum height=1cm,text centered, draw=black, fill=gray!20]
+\tikzstyle{process} = [rectangle, minimum width=3cm, minimum height=1cm, text centered, draw=black, fill=blue!20]
+\tikzstyle{decision} = [diamond, aspect=2, minimum width=3cm, minimum height=1cm, text centered, draw=black, fill=yellow!20]
+\tikzstyle{arrow} = [thick,->,>=stealth]
+\usepackage{multicol}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{booktabs}
+
+\lstdefinelanguage{Rust}{
+  morekeywords={let,mut,fn,enum,struct,impl,for,loop,match,if,else,while,break,continue,return,
+                pub,use,crate,mod,super,self,const,static,ref,as,in,extern,move,unsafe,dyn},
+  sensitive=true,
+  morecomment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  morestring=[b]",
+}
+
+\lstdefinelanguage{toml}{
+  morecomment=[l]{\#},
+  morestring=[b]",
+  morestring=[b]',
+  morekeywords={true,false}
+}
+
+\lstset{
+  language=Rust,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{orange},
+  showstringspaces=false,
+  breaklines=true,
+  frame=single,
+}
+
+\usetikzlibrary{shapes.geometric} % 流程图
+\geometry{a4paper, left=3cm, right=2.5cm, top=3cm, bottom=3cm}
 
 % 量和单位
 \usepackage{siunitx}
+
+% 表格多行绘制
+\usepackage{multirow}
+
+% 代码高亮
+\usepackage{minted}
+\setminted{
+    frame=single,                 % 添加代码框
+    framesep=2mm,                 % 框与代码之间的距离
+    fontsize=\footnotesize,       % 代码字体大小
+    breaklines=true,              % 自动换行
+    breakanywhere=true,           % 允许在任何地方换行
+    linenos=true,                 % 显示行号
+    numbersep=3pt,                % 行号与代码之间的距离
+    xleftmargin=5pt,              % 增加左边距
+    xrightmargin=5pt,             % 增加右边距
+}
 
 % 参考文献使用 BibTeX + natbib 宏包
 % 顺序编码制

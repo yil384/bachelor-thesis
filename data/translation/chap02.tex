@@ -1,0 +1,60 @@
+\section{Rust 在 Linux 中的基础原理}
+
+\subsection{Rust 的安全模型}
+
+Rust 是一种静态、强类型的编程语言，其安全模型通过对内存访问进行规范，从而保障内存和线程安全。简而言之，在任一时刻，仅允许一个变量写入某个内存位置，但多个变量可以同时读取。为此，Rust 实施了以下严格规则：
+
+\begin{itemize}
+  \item \textbf{所有权与生命周期}。Rust 要求每个内存位置（即值）在任意时间只能有一个所有者，其它变量仅可通过引用读取该值。这种机制类似于 affine 类型系统 \cite{105_aaron_weiss_oxide_2019}。所有者的生命周期定义其作用域：一旦所有者离开作用域，与其绑定的值以及其引用变量将被 Rust 自动释放。
+  
+  \item \textbf{移动与借用}。变量的所有权可以通过赋值或作为函数参数传递而发生转移（\textit{Move}）。也可以通过生成引用在不转移所有权的前提下借用变量（\textit{Borrow}）。一旦发生 Move 或 Borrow，原所有者将失去修改权限。Rust 还允许通过 \texttt{Send} 和 \texttt{Sync} traits 在多线程之间 Move 或 Borrow 所有权。
+\end{itemize}
+
+\subsection{unsafe 关键字}
+
+尽管上述机制保证了内存与线程安全，但它也极大地限制了语言的表达能力。例如，双向链表等复杂数据结构由于每个节点需被前驱与后继同时引用（即共享所有权），便违反了所有权独占性规则。因此，Rust 引入了 \texttt{unsafe} 关键字，作为一种“逃生舱”，允许程序员绕过编译器的静态检查。
+
+\texttt{unsafe} 代码块中，程序员可以进行多种操作，包括裸指针解引用、调用外部函数接口（FFI）函数，甚至嵌入内联汇编。Rust 编译器在这些区域内将安全性责任转交给程序员。因此，只要程序员能够通过安全 API 封装 unsafe 区域，就能确保整个程序依然维持 Rust 的安全保证 \cite{86_ralf_jung_rustbelt_2017}。
+
+\subsection{Rust 与 Linux 的集成方式}
+
+为将 Rust 编写的设备驱动集成进 C 编写的 Linux 内核，Rust-for-Linux（RFL）首先预处理 Rust 驱动所依赖的内核 API（如 \texttt{kmalloc}）。利用 \texttt{rust-bindgen} 工具，RFL 自动生成对应的 Rust FFI 接口，这些接口符合 Rust 的调用约定，并被封装为 \textit{kernel crate}（即内核库），可通过 FFI 直接调用。
+
+由于这些 API 最终运行于内核地址空间，无法由 Rust 编译器检查，因此 RFL 会为其包装一层安全抽象层，Rust 驱动只能调用该层导出的安全 API。例如，图~\ref{fig:rust_driver_integration} 展示了一个将 Rust 字符设备驱动集成至 Linux 的完整流程。
+
+具体而言，\texttt{rust-bindgen} 工具根据驱动依赖的头文件（如 \texttt{cdev.h}）生成三个 crate 中的 FFI 接口（图~\ref{fig:rust_driver_integration}a）；开发者随后手动构造安全抽象层，将 \texttt{bindings::cdev\_alloc} 等 unsafe 调用封装至安全函数 \texttt{alloc} 中（图~\ref{fig:rust_driver_integration}b）；最终，驱动仅通过调用这些抽象层 API 与内核基础设施交互（图~\ref{fig:rust_driver_integration}c）。
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/rfl_architecture.jpg}
+    \caption{Rust-for-Linux 的架构示意图。
+    (a) 使用 \texttt{rust-bindgen} 生成内核数据结构与接口的 FFI 绑定；
+    (b) 开发者通过封装 unsafe FFI 构建安全抽象层（kernel crate）；
+    (c) 驱动（drivers crate）调用安全抽象层接口以实现零开销的安全性。}
+    \label{fig:rust_driver_integration}
+\end{figure}
+  
+
+值得注意的是，RFL 使用注释作为开发者之间的契约，明确 unsafe 区块的前置条件与变量使用方式，以推理其安全性。
+
+\subsection{RFL 的目标}
+
+如表~\ref{tab:rfl_goals} 所示，RFL 在最初的 RFC \cite{13_rfc_maillist_rust_2021} 与官方展示 \cite{14_rust_for_linux_2021} 中明确提出三大目标：在不牺牲性能的前提下提升内核驱动的安全性，引入现代开发体验与高效工具链，并吸引更多开发者参与 Linux 内核开发。
+
+\begin{table}[h]
+    \centering
+    \caption{RFL 项目的初始目标 \cite{13_rfc_maillist_rust_2021}}
+    \begin{tabular}{p{4cm}p{9cm}}
+      \toprule
+      \textbf{目标维度} & \textbf{具体内容} \\
+      \midrule
+      安全性（Safety） & 提供内存安全与线程安全的驱动开发机制。 \\
+      性能（Performance） & 在抽象层不引入额外性能开销，实现零开销。 \\
+      工具链（Tools） & 提供更完善的文档与更高质量的 CI 测试支持。 \\
+      开发效率（Efficiency） & 提高内核开发过程中的效率与可维护性。 \\
+      社区（Community） & 吸引更多开发者参与内核社区开发。 \\
+      \bottomrule
+    \end{tabular}
+    \label{tab:rfl_goals}
+\end{table}
+  

@@ -1,76 +1,192 @@
-% !TeX root = ../thuthesis-example.tex
+\chapter{网络管理组件设计与实现}
 
-\chapter{引用文献的标注}
+本章将围绕 ArceOS 系统下对网络管理组件的进一步设计与实现展开论述，
+旨在增强其对 Linux 应用中广泛使用的 socket 网络编程模型的支持，
+从而提升系统的网络兼容能力与实用性。
 
-模板支持 BibTeX 和 BibLaTeX 两种方式处理参考文献。
-下文主要介绍 BibTeX 配合 \pkg{natbib} 宏包的主要使用方法。
+\section{开发环境与工具配置}
+本章所描述的网络管理组件在 ArceOS 宏内核架构下完成，其开发环境与前述章节保持一致：以 Rust 语言为主，结合 Cargo 构建系统与模块依赖管理机制，
+提供组件化的开发流程。
 
+项目支持包括 RISC-V、x86-64、AArch64 和 LoongArch64 在内的多种硬件架构，
+在 QEMU 模拟器平台上完成交叉编译与调试。
+通过构建 Makefile 脚本，支持不同架构下对网络协议栈（如 lwIP、smoltcp）的动态选择与功能测试。
 
-\section{顺序编码制}
+为辅助网络功能的开发与验证，使用 Wireshark 进行数据包捕获分析，结合 Netcat 与 iperf3 工具模拟常见的客户端/服务端通信场景，对 socket 接口的兼容性与性能进行实际验证。
 
-在顺序编码制下，默认的 \cs{cite} 命令同 \cs{citep} 一样，序号置于方括号中，
-引文页码会放在括号外。
-统一处引用的连续序号会自动用短横线连接。
+\section{模块总体设计思路}
 
-\thusetup{
-  cite-style = super,
-}
-\noindent
-\begin{tabular}{l@{\quad$\Rightarrow$\quad}l}
-  \verb|\cite{zhangkun1994}|               & \cite{zhangkun1994}               \\
-  \verb|\citet{zhangkun1994}|              & \citet{zhangkun1994}              \\
-  \verb|\citep{zhangkun1994}|              & \citep{zhangkun1994}              \\
-  \verb|\cite[42]{zhangkun1994}|           & \cite[42]{zhangkun1994}           \\
-  \verb|\cite{zhangkun1994,zhukezhen1973}| & \cite{zhangkun1994,zhukezhen1973} \\
-\end{tabular}
+网络管理组件的设计目标是提供统一的、具备 Linux 语义兼容性的 socket 抽象，
+支持 TCP 与 UDP 两种主要传输协议，同时保持 lwIP 与 smoltcp 协议栈的可插拔性。
+其核心架构设计围绕如下几个要点：
 
+\textbf{Socket 抽象与文件接口整合} \par
+ArceOS 将 socket 抽象统一封装为 Socket 枚举类型，内部以 Mutex 保护底层 TCP/UDP socket，
+确保在多线程环境下的并发访问安全。
 
-也可以取消上标格式，将数字序号作为文字的一部分。
-建议全文统一使用相同的格式。
+该 Socket 类型同时实现了 FileLike 接口，与系统文件描述符机制对接，使得 socket 可被视为一种特殊的文件资源，从而统一了内核中不同 I/O 接口的调用方式。
+这意味着标准的文件操作（如 read/write）可以直接用于 socket，系统调用层可以使用统一入口处理来自用户空间的文件与网络请求。
 
-\thusetup{
-  cite-style = inline,
-}
-\noindent
-\begin{tabular}{l@{\quad$\Rightarrow$\quad}l}
-  \verb|\cite{zhangkun1994}|               & \cite{zhangkun1994}               \\
-  \verb|\citet{zhangkun1994}|              & \citet{zhangkun1994}              \\
-  \verb|\citep{zhangkun1994}|              & \citep{zhangkun1994}              \\
-  \verb|\cite[42]{zhangkun1994}|           & \cite[42]{zhangkun1994}           \\
-  \verb|\cite{zhangkun1994,zhukezhen1973}| & \cite{zhangkun1994,zhukezhen1973} \\
-\end{tabular}
+此外，该设计还为未来扩展如 unix domain socket、raw socket 等提供了良好基础，仅需在枚举中增加新变体并对接口进行实现即可完成协议扩展。
 
+\textbf{系统调用支持与语义还原} \par
+为满足 Linux 应用对 socket 的调用习惯，网络组件实现了如下关键系统调用接口：
 
+\begin{itemize}
+  \item \texttt{sys\_socket, sys\_bind, sys\_listen, sys\_accept, sys\_connect}
+  \item \texttt{sys\_send, sys\_recv, sys\_sendto, sys\_recvfrom}
+  \item \texttt{sys\_getsockname, sys\_getpeername, sys\_setsockopt, sys\_shutdown}
+\end{itemize}
 
-\section{著者-出版年制}
+每个系统调用都遵循相似的处理流程：解析传参、校验合法性、调用 \texttt{Socket::from\_fd()} 映射底层资源，最后执行 socket 上对应方法。
+部分调用（如 \texttt{sys\_sendto} / \texttt{sys\_recvfrom} ）还需要处理地址结构与字节缓冲区的转换，并正确管理内存访问权限。
 
-著者-出版年制下的 \cs{cite} 跟 \cs{citet} 一样。
+同时，通过复用 Rust 中 Result 类型与 axerrno 提供的错误码结构，网络模块能够优雅处理各类系统错误，保持与 Linux 错误语义对齐。
 
-\thusetup{
-  cite-style = author-year,
-}
-\noindent
-\begin{tabular}{@{}l@{$\Rightarrow$}l@{}}
-  \verb|\cite{zhangkun1994}|                & \cite{zhangkun1994}                \\
-  \verb|\citet{zhangkun1994}|               & \citet{zhangkun1994}               \\
-  \verb|\citep{zhangkun1994}|               & \citep{zhangkun1994}               \\
-  \verb|\cite[42]{zhangkun1994}|            & \cite[42]{zhangkun1994}            \\
-  \verb|\citep{zhangkun1994,zhukezhen1973}| & \citep{zhangkun1994,zhukezhen1973} \\
-\end{tabular}
+\textbf{协议栈解耦与多栈选择机制} \par
+ArceOS 通过 feature 条件编译特性，实现对 lwIP 和 smoltcp 网络协议栈的动态替换。
 
-\vskip 2ex
-\thusetup{
-  cite-style = super,
-}
-注意，引文参考文献的每条都要在正文中标注
-\cite{zhangkun1994,zhukezhen1973,dupont1974bone,zhengkaiqing1987,%
-  jiangxizhou1980,jianduju1994,merkt1995rotational,mellinger1996laser,%
-  bixon1996dynamics,mahui1995,carlson1981two,taylor1983scanning,%
-  taylor1981study,shimizu1983laser,atkinson1982experimental,%
-  kusch1975perturbations,guangxi1993,huosini1989guwu,wangfuzhi1865songlun,%
-  zhaoyaodong1998xinshidai,biaozhunhua2002tushu,chubanzhuanye2004,%
-  who1970factors,peebles2001probability,baishunong1998zhiwu,%
-  weinstein1974pathogenic,hanjiren1985lun,dizhi1936dizhi,%
-  tushuguan1957tushuguanxue,aaas1883science,fugang2000fengsha,%
-  xiaoyu2001chubanye,oclc2000about,scitor2000project%
-}。
+在内核配置文件中用户可选择使用 lwIP 或 smoltcp，两者实现了统一的 trait 接口，使得在 socket 层操作中无需关注底层协议栈差异。
+
+此外，在网络栈初始化过程中，系统会根据配置自动加载对应协议栈，初始化设备接口（如 TAP 网卡或 virtio 网卡），完成链路层与上层协议的绑定。
+
+此机制的设计目标是为未来更多协议栈（如 embedded-nal 或 async-tcp）接入提供通用扩展点，实现灵活切换与无侵入式替换。
+
+\section{lwIP 协议栈适配与封装实现}
+
+\textbf{pbuf 管理机制解析} \par
+lwIP 使用 pbuf 结构作为数据包缓冲区，其支持 $PBUF\_RAM$、$PBUF\_ROM$、$PBUF\_REF$ 等多种类型，分别对应内存分配方式与引用策略。
+
+为提升性能，ArceOS 将 pbuf 的内存管理逻辑与内核中的 slab/heap 机制结合，统一使用内存池分配，以减少碎片并提升缓存命中率。
+
+在数据收发过程中，通过 $pbuf\_chain$ 构建链式结构，实现分片组包能力；释放时则统一使用 $pbuf\_free$ 并增加引用计数机制确保内存安全。
+
+同时，针对 Rust 所需的内存安全与生命周期管理，引入回调钩子机制，允许在 pbuf 释放时调用预设释放器，如关闭等待队列、释放关联任务上下文等。
+
+\textbf{回调系统与事件驱动模型} \par
+为了实现事件驱动模型，ArceOS 为 lwIP 的回调接口增加了适配器层：
+
+\begin{itemize}
+  \item TCP 接收事件通过 \texttt{tcp\_recv} 注册回调，在数据到达时将任务唤醒
+  \item 连接建立通过 \texttt{tcp\_accept} 处理新连接，将新 \texttt{socket} 加入监听队列
+  \item 发送完成事件通过 \texttt{tcp\_sent} 通知发送缓冲区空闲，可继续写入数据
+  \item 错误事件通过 \texttt{tcp\_err} 回调报告异常，配合 shutdown 或自动回收资源
+\end{itemize}
+
+这些回调均结合 WaitQueue 与任务调度机制，在 socket 层实现阻塞与唤醒模型，兼顾 Linux 应用对同步 socket 行为的依赖。
+
+通过事件注册与回调响应机制，lwIP 协议栈能够与 ArceOS 高效协作，完成连接建立、数据传输、异常关闭等完整连接生命周期管理。
+
+\section{smoltcp 协议栈异步接口适配}
+
+\textbf{poll 接口与非阻塞语义} \par
+smoltcp 作为轻量化协议栈，其核心设计即为事件驱动，其接口暴露的 poll() 方法用于主动轮询网络接口状态。
+
+ArceOS 在实现中为每个 TCP/UDP socket 包装状态机，每次调用 poll() 返回当前 socket 是否可读/可写，并与 poll/select/epoll 系统调用的语义一致对齐。
+
+每个 Socket 对象实现 PollState 查询接口，并在网络事件发生后通过中断或轮询唤醒对应任务线程，实现非阻塞式的数据收发机制。
+
+\textbf{结合任务调度的异步适配} \par
+为适配 Rust 中广泛使用的 async/await 模型，ArceOS 在 socket 层引入 Waker 机制。
+
+每当 socket 状态变更（如缓冲区变为可读、可写），协议栈会触发注册的 waker，唤醒阻塞的异步任务。
+
+Waker 的注册通过 Future trait 实现中的 poll() 方法完成，结合 WakerQueue 实现多个任务对同一 socket 状态的订阅与唤醒。
+
+该机制为 future-ready 的协议栈如 smoltcp 提供良好支持，为未来基于 async 编写的高性能网络服务打下基础。
+
+\section{Socket 接口系统调用实现细节}
+本节给出若干典型 socket 系统调用在 ArceOS 中的实现过程。
+
+\subsection{sys\_socket}
+用于创建新的套接字对象，根据传入的 domain、type、protocol 参数实例化对应类型的 socket，并将其加入文件描述符表。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.5\textwidth]{figures/sys_socket.png}
+  \caption{sys\_socket 系统调用的实现流程}
+  \label{fig:sys_socket}
+\end{figure}
+
+\subsection{sys\_bind, sys\_connect, sys\_listen, sys\_accept}
+这些系统调用封装了 socket 生命周期中的典型状态转换：
+\begin{itemize}
+  \item \texttt{bind} 将 socket 绑定至本地地址
+  \item \texttt{connect} 主动连接远端主机
+  \item \texttt{listen} 转为被动监听状态
+  \item \texttt{accept} 从连接队列中提取 socket，返回新连接句柄
+\end{itemize}
+
+\begin{figure}[htbp]
+  \centering
+  % 第一张图片
+  \begin{minipage}[t]{0.49\textwidth} % [t] 顶部对齐
+    \centering
+    \includegraphics[width=\linewidth, height=8cm]{figures/sys_bind.png} % 固定高度
+    \caption{sys\_bind 系统调用的实现流程}
+    \label{fig:sys_bind}
+  \end{minipage}
+  \hfill
+  % 第二张图片
+  \begin{minipage}[t]{0.49\textwidth} % [t] 顶部对齐
+    \centering
+    \includegraphics[width=\linewidth, height=10cm]{figures/sys_connect.png} % 相同高度
+    \caption{sys\_connect 系统调用的实现流程}
+    \label{fig:sys_connect}
+  \end{minipage}
+\end{figure}
+  
+
+\subsection{sys\_sendto / sys\_recvfrom}
+这些调用支持 UDP 无连接数据报通信，允许在未连接状态下向任意地址发送数据。
+调用时会尝试临时 bind，确保套接字处于就绪状态。
+
+\begin{figure}[htbp]
+  \centering
+  % 第一张图片
+  \begin{minipage}[t]{0.49\textwidth} % [t] 顶部对齐
+    \centering
+    \includegraphics[width=\linewidth, height=10cm]{figures/sys_sendto.png} % 固定高度
+    \caption{sys\_sendto 系统调用的实现流程}
+    \label{fig:sys_sendto}
+  \end{minipage}
+  \hfill
+  % 第二张图片
+  \begin{minipage}[t]{0.49\textwidth} % [t] 顶部对齐
+    \centering
+    \includegraphics[width=\linewidth, height=9cm]{figures/sys_recvfrom.png} % 相同高度
+    \caption{sys\_recvfrom 系统调用的实现流程}
+    \label{fig:sys_recvfrom}
+  \end{minipage}
+\end{figure}
+
+\subsection{sys\_setsockopt 与选项控制}
+用于设置 TCP/UDP 层面参数，如接收缓冲区大小、\texttt{TCP\_NODELAY} 等。
+当前版本支持基本的结构识别与参数存取，未来可扩展为完整 Linux socket option 支持集。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.7\textwidth]{figures/sys_setsockopt.png}
+  \caption{sys\_setsockopt 系统调用的实现流程}
+  \label{fig:sys_setsockopt}
+\end{figure}
+
+\section{组件之间的协作与系统集成}
+网络组件在系统中与多个模块交互密切：
+
+\begin{itemize}
+  \item 与任务调度组件配合实现阻塞与唤醒逻辑
+  \item 与内存管理模块共享缓存区与内存池资源
+  \item 与文件系统统一接口实现 read/write/stat 多态行为
+\end{itemize}
+
+具体流程见图 \ref{fig:network_component_flow}，该图展示了 socket 创建、数据发送接收、连接管理等操作的协同工作。
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.6\textwidth]{figures/net_flow.pdf}
+    \caption{网络组件与系统其他模块的协作流程}
+    \label{fig:network_component_flow}
+\end{figure}
+
+\section{小结}
+本章对 ArceOS 网络管理组件的设计与实现进行了系统性阐述，从系统调用支持、socket 接口封装、协议栈适配到异步语义整合，全面覆盖了宏内核下对网络通信子系统的构建过程。未来可进一步支持 IPv6、raw socket、TLS 加密通道等高级网络特性，完善网络子系统的功能与性能。

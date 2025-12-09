@@ -1,0 +1,48 @@
+\section{案例研究：内核空间中 Rust 编程的灵活性问题}
+
+图~\ref{fig:rust-inflexibility} 展示了一个典型案例，说明 Rust 的安全规则在某些场景下限制了内核编程的灵活性\cite{96_hongyu_li_rros_2023}。该例实现了一个字符设备的动态数组，左侧为内核 C 版本，右侧为 Rust 版本，其结构定义如图~\ref{fig:rust-inflexibility}(a) 所示。
+
+虽然两者结构上相似，Rust 实现存在关键缺陷：用于指定工厂数组大小的常量 $N$ 一旦设定即不可更改（例如设置为 256），这一不可变常量将固定应用于所有工厂实例。无论线程工厂可能需要 256 个元素，代理工厂仅需 8 个元素，Rust 下二者都只能选择统一大小（要么都为 256，要么都为 8），从而造成内存浪费或碎片。
+
+相比之下，C 内核实现则可通过指针修改 \texttt{len} 字段，从而轻松实现字符设备的动态注册与数组扩展。
+
+尽管如此，开发者可借助一系列绕过方案克服上述限制，如图~\ref{fig:rust-inflexibility}(b) 所示。首先需手动定义 \texttt{dyn\_num} trait 并声明其使用（如 \texttt{use\_elements} 函数），并通过 \texttt{dyn trait} 机制启用动态分发。接着，引入常量泛型参数 $T$ 用以表达每个实例的不同元素数量。最后，为具体类型实现该 trait，以分别定义线程工厂（256）与代理工厂（8）的大小。
+
+上述方案虽然可行，但会增加开发复杂度，并引入运行时检查，从而影响性能。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{rust_inflexibility_example.jpg}
+  \caption{示例展示了 RFL 驱动编写中 Rust 的灵活性问题}
+  \label{fig:rust-inflexibility}
+\end{figure}
+
+\section{带调试信息的驱动体积开销}
+
+在调试阶段，开发者可能需要保留 Rust 驱动的调试信息。图~\ref{fig:debug-info-size} 展示了带调试信息（如 \texttt{debug\_foo} 区段）下 Rust 与 C 驱动体积的对比。
+
+即使是功能未完全实现的 Rust 驱动，其二进制体积也比对应的 C 实现大 3.9--6.6 倍。主要原因在于 Rust 广泛使用泛型编程，导致生成了更多符号及更长的符号名，从而显著扩大调试段的大小。
+
+在资源受限的嵌入式设备中（如闪存和内存仅数 MB 级别\cite{102_pierre_olivier_flashmon_2014}），这种开销是不可忽视的。因此，为实现调试功能，如何压缩驱动体积是嵌入式系统开发中的关键挑战\cite{87_asim_kadav_understanding_2012}。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.8\linewidth]{debug_info_comparison.jpg}
+  \caption{Rust 与 C 驱动在启用调试段下的体积对比。带 * 的表示 Rust 驱动未实现完整功能}
+  \label{fig:debug-info-size}
+\end{figure}
+
+\section{内核社区对 Rust 的看法}
+
+为更深入了解 Linux 内核社区对 Rust 的态度，我们收集了截至 2023 年 8 月 5 日，在 LWN 与 YCombinator 平台上关于 Rust 驱动开发的相关帖子，并利用 ChatGPT 对其进行分析。
+
+分析分为两个部分：一是情感分析（sentiment analysis），将观点划分为正向与负向；二是意见挖掘（opinion mining），识别正负观点背后的具体原因。分析结果如图~\ref{fig:community-opinion-rust} 所示。
+
+总体来看，Rust 因其安全性与性能获得社区较高认可。然而，开发者最关心的问题仍是 Rust 较高的学习曲线。这表明，Rust 要在内核领域获得更广泛接受，还需时间逐步验证其稳定性与实用性。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.85\linewidth]{rust_community_opinion.jpg}
+  \caption{开发者对 RFL 在 Linux 中使用的观点统计与分析}
+  \label{fig:community-opinion-rust}
+\end{figure}

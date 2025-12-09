@@ -1,0 +1,48 @@
+\section{引言}
+
+作为当今计算基础设施的事实标准，Linux 从未停止对长期困扰系统软件的内存和并发错误的消除 \cite{55_kernel_self_protection_2024, 61_documentation_how_linux_2024, 80_sishuai_gong_snowboard_2021, 109_duo_zhang_study_2021}。尽管社区投入大量安全加固与工程努力，漏洞仍不断涌现 \cite{15_linux_cve_caused_2022, 23_linux_cve_caused_2023, 24_linux_cve_caused_2023, 25_linux_cve_caused_2023}。究其根源，主要在于 C 语言允许不受限制地访问内存对象，Linux 内核也依赖野指针转换、裸指针操作等机制构建复杂抽象层与通用框架（如设备驱动 \cite{60_book_linux_device_2024}），以追求模块化和性能。
+
+如何在不牺牲性能的前提下保障内存安全？Rust 语言被视为一个有前途的解决方案，有望根本缓解上述问题 \cite{13_rfc_maillist_rust_2021}。作为一种新兴的、静态且强类型的系统编程语言，Rust 承诺在无运行时开销的前提下实现安全与高性能 \cite{51_rust_programming_language_2023}。其背后依托的是所有权机制 \cite{48_ownership_mechanism_rust_2023}，用于根除内存与并发错误，其核心规则包括：1）每个内存位置在任意时刻只能被一个变量独占；2）所有权可通过移动或引用的方式在线程内或线程间（通过 \texttt{Send} 和 \texttt{Sync} traits）传递；3）所有者离开作用域时，对应内存自动释放。Rust 依赖静态检查在编译期强制上述规则，从而无需使用传统的重量级内存检查器 \cite{84_thuan_huynh_memory_2006, 90_michalis_kokologiannakis_genmc_2021} 或垃圾回收器 \cite{75_stephen_blackburn_oil_2004, 85_mohamed_ismail_quantitative_2018}，避免了运行时中断和不确定性延迟。
+
+\paragraph{Rust for Linux 项目：}
+
+正是由于 Rust 上述的安全属性，2013 年一项名为 Rust-for-Linux（RFL）的尝试性项目应运而生 \cite{3_minimal_linux_kernel_2013}，如图 \ref{fig:rfl_milestones} 所示。它首次构建了一个基于内核头文件的 Rust 目标文件，并在可加载模块中调用了一个 Rust 函数输出“Hello from Rust!++”，标志着 Rust 第一次在 Linux 内核空间中发声。最初，Rust 只是 Linux 的一个“边缘工具”，主要用于编写安全关键、独立且简短的内核模块函数。2019 年，写整个内核模块的 Rust 提案开始出现 \cite{8_writing_linux_kernel_2019, 11_linux_kernel_modules_2021}，该提案大胆地在上游内核中引入了对内核接口和数据结构的 Rust 封装层。2020 年的 Linux Plumbers Conference（LPC）上，该想法首次提出被广泛支持 \cite{10_barriers_in_tree_2020}，并促成了 2021 年首个 RFL RFC 发布 \cite{13_rfc_maillist_rust_2021}。此后，RFL 项目迅速发展，通过 Git 仓库管理代码，引入持续集成（CI）机制确保补丁质量，交流平台也从传统邮件列表转向更活跃的 Zulip 社区。2022 年，RFL 作为实验性功能正式并入 Linux v6.1 主线版本 \cite{20_linux_merges_rust_2022}。
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.5\textwidth]{figures/rfl_milestones.jpg}
+    \caption{RFL 发展历程中的重要里程碑。}
+    \label{fig:rfl_milestones}
+\end{figure}
+
+RFL 推动了各种 Rust 驱动的开发，包括网络 \cite{62_e1000_nic_driver_2024}、块设备 \cite{68_null_block_driver_2024, 69_nvme_device_driver_2024}、文件系统 \cite{32_puzzlefs_buiild_vfs_2023, 36_tarfs_buiild_vfs_2023}、Android \cite{59_android_binder_driver_2024} 与 GPU 驱动 \cite{67_mac_gpu_driver_2024}。其中，一个网络驱动 \cite{40_first_rust_driver_2023} 经过 11 轮联合审查后成功并入主线 Linux v6.8，意味着 RFL 已从实验阶段逐步进入真实使用场景。尽管尚处于早期阶段，RFL 已成为最活跃的内核子系统之一 \cite{47_official_statistics_rfl_2023}，可与 eBPF \cite{63_ebpf_project_2024} 和 io\_uring \cite{65_io_uring_project_2024} 并驾齐驱。
+
+\paragraph{研究动机：}
+
+尽管 Rust 语言特性已经被广泛研究 \cite{71_vytautas_astrauskas_how_2020, 103_boqin_qin_understanding_2020, 110_yuchen_zhang_towards_2023}，Rust 与 Linux 的结合（即 RFL）仍鲜有系统性分析。理解其融合过程对于指导安全高效驱动开发具有重要意义，也为将 Rust 应用于更多内核子系统提供参考。
+
+此外，RFL 提供了观察新语言如何融入大型传统代码库的独特视角。这一过程不仅包括将内核库封装为 Rust crate，也涉及语法语义的适配（如将 C 风格的宏泛型范式翻译为 Rust 风格），还包括将 Rust 安全规则融入对执行内存更宽松的内核环境中，以及引入新协作模式和工具链，逐步影响 Linux 的开发流程。该过程融合了成功、争议与妥协。在 2022 年以来已有超 2 万行 RFL 代码合入主线背景下，我们认为此时对其发展历程进行回顾具有现实意义。
+
+因此，本文旨在开展对 RFL 融合过程的首次系统研究。我们收集了 RFL 项目的 6 个驱动、269 个 Issue、763 个 PR、1540 次提交、3611 条邮件与 12501 条论坛讨论内容。
+
+\paragraph{研究问题：}
+
+本文将围绕以下三个关键研究问题（RQ）展开：
+
+\begin{itemize}
+  \item \textbf{RQ1：RFL 的现状如何？}我们分析现有数据并深入驱动实现，发现尽管 RFL 的构建系统（如 Kbuild）已趋成熟，但缺乏主流驱动和文件系统，核心瓶颈在于代码审查进展缓慢。此外，尽管 Rust Traits 减轻了手动审计负担，但并非保障内存安全的“银弹”，Rust 与内核在内存操作的语义差异带来复杂的绕行方案，造成运行与开发开销。
+  \item \textbf{RQ2：RFL 是否达成其初衷？}我们重评社区最初设定的三个目标：更安全、性能损失小、开发更容易。实测五个 RFL 驱动发现，Rust 提高了安全“可达性”但非绝对安全，unsafe 是驱动开发不可避免的选择。同时，Traits 与智能指针引发大量 icache miss，性能在部分场景不及 C；但 Rust 显著提升了代码质量，吸引了非 C 背景开发者。
+  \item \textbf{RQ3：从 RFL 中可获得哪些经验？}我们提出了开发者应谨慎对待 Rust 安全保障的建议，并为社区提供一个评估“Rust 化”子系统价值的模型：通过对安全收益与开发代价的权衡评估，优先推荐将 ext4 和 linux-block 等 7 个子系统及其 25 个驱动作为推进重点。
+\end{itemize}
+
+\paragraph{贡献：}
+
+相较于现有研究关注 Rust 安全与性能 \cite{81_amélie_gonzalez_takeaways_2023, 97_zhuohua_li_securing_2019}，本文首次全面剖析 Rust 与 Linux 的融合过程，贡献如下：
+
+\begin{itemize}
+  \item 构建包含 1540 次提交、269 个 Issue、763 个 PR 与 3611 封邮件的数据集，并将在公开发表后开源。
+  \item 开发自动化工具集，实现 API 统计分析与子系统视角的结果展示。
+  \item 提出对 RFL 当前发展状态的深入剖析，总结将 Rust 融入内核的主要挑战，并提供针对未来驱动开发的实用建议。
+\end{itemize}
+
+完整数据与工具已发布于：https://github.com/Richardhongyu/rfl\_empirical\_tools。我们将持续追踪 RFL 项目演进并定期更新仓库内容。

@@ -1,97 +1,480 @@
-% !TeX root = ../thuthesis-example.tex
+\chapter{lwIP 与 smoltcp 网络协议栈的集成与分析}
 
-\chapter{数学符号和公式}
+\section{lwIP 与 smoltcp 协议栈背景与设计理念}
+在操作系统的网络子系统中，TCP/IP 协议栈扮演着核心角色。随着嵌入式设备、物联网和轻量级虚拟化的发展，传统全功能协议栈（如 Linux 内核网络栈）面临资源开销大、适配复杂等问题。因此，轻量化、模块化、高可移植性的 TCP/IP 协议栈成为操作系统设计中的关键组件。
 
-\section{数学符号}
+在本论文所设计的 ArceOS 与 starry-next 系统中，出于灵活适配多种部署环境的需求，选取了两种轻量级协议栈：\textbf{lwIP} 与 \textbf{smoltcp}。二者在设计理念、目标平台、功能覆盖与性能特点上各具特色，满足从边缘节点到高性能虚拟机等多样化使用场景。
 
-中文论文的数学符号默认遵循 GB/T 3102.11—1993《物理科学和技术中使用的数学符号》
-\footnote{原 GB 3102.11—1993，自 2017 年 3 月 23 日起，该标准转为推荐性标准。}。
-该标准参照采纳 ISO 31-11:1992 \footnote{目前已更新为 ISO 80000-2:2019。}，
-但是与 \TeX{} 默认的美国数学学会（AMS）的符号习惯有所区别。
-具体地来说主要有以下差异：
-\begin{enumerate}
-  \item 大写希腊字母默认为斜体，如
-    \begin{equation*}
-      \Gamma \Delta \Theta \Lambda \Xi \Pi \Sigma \Upsilon \Phi \Psi \Omega.
-    \end{equation*}
-    注意有限增量符号 $\increment$ 固定使用正体，模板提供了 \cs{increment} 命令。
-  \item 小于等于号和大于等于号使用倾斜的字形 $\le$、$\ge$。
-  \item 积分号使用正体，比如 $\int$、$\oint$。
-  \item
-    偏微分符号 $\partial$ 使用正体。
-  \item
-    省略号 \cs{dots} 按照中文的习惯固定居中，比如
-    \begin{equation*}
-      1, 2, \dots, n \quad 1 + 2 + \dots + n.
-    \end{equation*}
-  \item
-    实部 $\Re$ 和虚部 $\Im$ 的字体使用罗马体。
-\end{enumerate}
+\textbf{lwIP 协议栈简介} \par
+lwIP（Lightweight IP）由 Adam Dunkels 于 2001 年提出，最初用于 uIP 项目的高性能补充版本，后由瑞典计算机科学研究院维护。它采用 C 语言实现，结构紧凑，功能全面，适用于具有操作系统支持或裸机环境的嵌入式平台。
 
-以上数学符号样式的差异可以在模板中统一设置。
-另外国标还有一些与 AMS 不同的符号使用习惯，需要用户在写作时进行处理：
-\begin{enumerate}
-  \item 数学常数和特殊函数名用正体，如
-    \begin{equation*}
-      \uppi = 3.14\dots; \quad
-      \symup{i}^2 = -1; \quad
-      \symup{e} = \lim_{n \to \infty} \left( 1 + \frac{1}{n} \right)^n.
-    \end{equation*}
-  \item 微分号使用正体，比如 $\dif y / \dif x$。
-  \item 向量、矩阵和张量用粗斜体（\cs{symbf}），如 $\symbf{x}$、$\symbf{\Sigma}$、$\symbfsf{T}$。
-  \item 自然对数用 $\ln x$ 不用 $\log x$。
-\end{enumerate}
+\paragraph{设计目标} 其核心目标是提供完整 TCP/IP 协议支持，最小化资源消耗，同时具备良好的可移植性。
+
+\paragraph{主要特性} 
+\begin{itemize}
+  \item 支持 TCP、UDP、ICMP、IGMP、IPv4/IPv6 协议；
+  \item 支持多线程/无线程运行模式（通过 NO\_SYS 配置切换）；
+  \item 具备 DNS、DHCP、SNMP、PPP 等高级协议模块；
+  \item 内存使用灵活：支持内存池、堆、pbuf 链等多种分配方式。
+\end{itemize}
+
+\paragraph{适用场景} 
+\begin{itemize}
+  \item 嵌入式系统与中型设备，运行 RTOS 或裸机主循环；
+  \item 对网络兼容性要求高，需要支持 DNS、DHCP 等协议；
+  \item 高吞吐、高并发的微服务器部署（如边缘网关）。
+\end{itemize}
+
+\textbf{smoltcp 协议栈简介} \par
+smoltcp 是一个由 Rust 社区开发、面向 IoT 和嵌入式平台的现代化网络协议栈。以安全、最小化和可组合为核心设计原则，其源码结构清晰，便于阅读和集成，尤其适合资源极端受限的系统。
+
+\paragraph{设计目标} 实现高度模块化、零动态内存分配的 TCP/IP 协议栈，适应异步、事件驱动的系统架构。
+
+\paragraph{主要特性}
+\begin{itemize}
+  \item 完全采用 Rust 编写，利用语言级内存安全机制；
+  \item 支持 TCP、UDP、ICMPv4、ARP、IPv4 等协议；
+  \item 零动态内存分配：所有资源在初始化阶段分配；
+  \item 提供非阻塞 API，适用于 async/await 与轮询模型。
+\end{itemize}
+
+\paragraph{适用场景}
+\begin{itemize}
+  \item 极度资源受限设备，如 IoT 控制器、传感器节点；
+  \item 使用 Rust 异步模型的裸机或嵌入式系统；
+  \item 需要语言级内存安全保证的嵌入式研发环境。
+\end{itemize}
+
+\begin{figure}
+  \centering
+  \subcaptionbox{lwIP 协议栈架构示意图 \label{fig:lwip-arch}}
+    {\includegraphics[width=0.47\linewidth]{figures/lwip_arch.pdf}}
+  \subcaptionbox{smoltcp 协议栈架构示意图 \label{fig:smoltcp-arch}}
+    {\includegraphics[width=0.47\linewidth]{figures/smoltcp_arch.pdf}}
+  \caption{lwIP 与 smoltcp 协议栈架构对比}
+  \label{fig:protocol_stack_arch}
+\end{figure}
+
+\section{功能与架构对比分析}
+
+\begin{table}[h]
+  \centering
+  \caption{lwIP 与 smoltcp 核心架构比较}
+  \begin{tabular}{p{4cm}p{5cm}p{5cm}}
+    \toprule
+    \textbf{特性维度} & \textbf{lwIP} & \textbf{smoltcp} \\
+    \midrule
+    编程语言 & C & Rust \\
+    内存管理 & 动态/静态混合，支持堆与内存池 & 完全静态，零动态分配 \\
+    协议覆盖 & TCP/UDP/ICMP/IGMP 等 & TCP/UDP/ICMP/ARP 等 \\
+    多线程支持 & 支持（sys layer） & 非阻塞设计，支持 async \\
+    定时机制 & 内置定时器 + 任务调度 & 用户提供 tick 驱动 \\
+    使用场景 & 嵌入式、软路由、RTOS 环境 & IoT、嵌入式裸机 \\
+    安全特性 & 无语言级保护，依赖开发者控制 & Rust 保证内存安全 \\
+    可裁剪性 & 配置选项众多，可模块裁剪 & 特性标志清晰，易于组合 \\
+    文档支持 & 完善的移植与集成文档 & Rust 社区持续维护，结构规范 \\
+    \bottomrule
+  \end{tabular}
+  \label{tab:arch_compare}
+\end{table}
+
+lwIP 使用传统网络协议栈的同步模型，数据包从驱动上传，经过 pbuf 缓存池分发到各协议模块，最后到达应用 socket 层。smoltcp 使用事件轮询机制，应用主动 poll() 网络接口，读取缓存区或传递发包数据，由应用控制时序。
+
+\section{协议栈启动与数据处理流程}
+
+为了进一步理解 lwIP 与 smoltcp 在 ArceOS 中的运行机制与设计思路，本节对两种协议栈在系统启动、网络设备初始化、数据包处理及与应用交互过程中的完整流程进行了深入分析，并结合流程图进行直观展示。这不仅有助于理解其内在运行逻辑，也为后续调试与性能优化提供技术基础。
+
+\textbf{lwIP 启动与数据处理流程} \par
+
+lwIP 作为一款成熟的轻量级网络协议栈，其启动过程主要包括协议栈结构初始化、网络接口注册、回调函数绑定以及定时机制的启用等步骤。由于 lwIP 支持两种运行模式（带操作系统或裸机模式），在 ArceOS 的集成中我们采用的是裸机模式，即 \texttt{NO\_SYS=1} 配置下的手动轮询调度方式。
+
+协议栈启动后的数据处理流程可概括如下：
+
+\begin{itemize}
+  \item 在系统初始化阶段调用 \texttt{lwip\_init()} 函数完成协议栈的全局初始化，包括内存池、pbuf 缓冲区、TCP 控制块（TCB）等资源的配置；
+  \item 使用 \texttt{netif\_add()} 函数注册网络接口，并指定输入处理回调函数（如 \texttt{ethernet\_input}），同时通过 \texttt{netif\_set\_up()} 启用该接口；
+  \item 对于定时事件，如 TCP 重传、ARP 超时等，使用定时任务线程，来进行定期调用 \texttt{sys\_check\_timeouts()} ，从而驱动协议栈内部的定时器；
+  \item 网络驱动在接收到数据帧后，将其封装为 \texttt{pbuf} 结构，并通过输入回调函数传递至协议栈入口；
+  \item 协议栈根据数据类型（IP、ARP、ICMP等）进行解析，并分发到相应的协议模块；
+  \item 应用程序通过 socket 或 netconn 接口与 TCP 或 UDP 层交互，完成数据的发送与接收。
+\end{itemize}
+
+\textbf{smoltcp 启动与数据处理流程} \par
+
+与 lwIP 不同，smoltcp 遵循高度模块化和最小化的设计原则，采用主动式轮询模型，并不依赖于中断或回调机制。这使得其在嵌入式或裸机系统中具备更好的时序控制能力，适合资源紧张或任务驱动型场景。
+
+其启动与数据处理流程如下：
+
+\begin{itemize}
+  \item 使用 \texttt{InterfaceBuilder} 创建网络接口结构体，配置本地 IP、MAC 地址、缓冲池、MTU 等信息；
+  \item 使用 \texttt{SocketSet} 管理全部 socket 资源，每个 socket 均以静态方式注册；
+  \item 通过周期性调用 \texttt{iface.poll()} 函数轮询网络设备，读取驱动中接收到的数据包，并触发协议层逻辑处理；
+  \item poll 函数内部根据 socket 状态进行数据转发、连接维护、ACK 回应等操作；
+  \item 应用程序使用非阻塞方式操作 socket，主动轮询读取或写入数据；
+  \item 所有资源均在初始化时静态分配，运行过程中不进行动态内存分配，提升系统可预测性与实时性。
+\end{itemize}
+
+图 \ref{fig:network_start_flow} 展示了 lwIP 与 smoltcp 在 ArceOS 中的启动与数据处理流程对比。两种协议栈在设计理念、资源管理、数据处理机制等方面存在显著差异，适用于不同的应用场景。
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[width=0.5\textwidth]{figures/net_start_flow.pdf}
+  \caption{ArceOS 网络协议栈启动流程比较图}
+  \label{fig:network_start_flow}
+\end{figure}
+
+两种协议栈在启动流程、资源配置和数据处理机制上存在显著差异：
+
+\begin{itemize}
+  \item \textbf{调度模式：} lwIP 依赖定时器驱动和回调函数，适用于具备定时机制或 RTOS 支持的系统；而 smoltcp 全部采用显式调用 \texttt{poll()}，适合裸机与 async 模型；
+  \item \textbf{资源管理：} lwIP 使用动态和静态混合方式分配内存，而 smoltcp 完全避免动态内存分配，更适合对实时性要求高的场合；
+  \item \textbf{使用方式：} lwIP 适合传统 socket 模型，smoltcp 则倾向于事件驱动架构，接口清晰但灵活度略低；
+  \item \textbf{调试与扩展性：} lwIP 功能更丰富，但内部模块耦合较高；smoltcp 结构简洁，模块之间边界清晰，便于移植与扩展。
+\end{itemize}
+
+两种协议栈各有侧重，在 ArceOS 的网络系统中实现双协议栈支持，能够覆盖从轻量 IoT 到高负载边缘网关的多种使用场景，为系统的灵活部署和协议栈演进提供了坚实基础。
+
+为了增强 ArceOS 在网络通信方面的性能与兼容性，系统同时集成了两种轻量级协议栈：Rust 实现的 \texttt{smoltcp} 与 C 实现的 \texttt{lwIP}。两者均通过统一的接口抽象在 \texttt{axnet} 中封装，对上层应用提供一致的 Socket API，包括对 TCP、UDP、DNS 等常用网络功能的支持。
+
+相较而言，\texttt{lwIP} 在多连接处理、高并发负载与协议功能完备性方面展现出更佳表现，适合需要较强协议兼容性和吞吐性能的应用场景。
+
+\paragraph{协议栈适配机制} 
+ArceOS 中通过实现 \texttt{NetDevices} 接口将底层驱动与协议栈解耦，并为 \texttt{lwIP} 提供裸机级初始化流程（\texttt{lwip\_init}）、设备注册（\texttt{netif\_add}）与数据收发接口封装（\texttt{myif\_input}, \texttt{myif\_link\_output}）。该流程兼容 IPv4/IPv6，支持零拷贝内存复用机制，提高数据处理效率。
+
+\paragraph{TCP 支持优化} 
+在 TCP 支持方面，\texttt{lwIP} 通过回调方式处理连接与数据交互。适配时，为每个 TCP 连接创建固定地址的内存对象，并通过互斥锁实现阻塞等待功能，实现接口 \texttt{connect}、\texttt{bind}、\texttt{accept}、\texttt{recv}、\texttt{send} 等函数以支持标准 Socket 使用模式。
+
+\paragraph{UDP 与 DNS 支持} 
+对于 UDP 协议，\texttt{lwIP} 利用其 Raw API 实现非连接数据报通信，并支持自定义端口监听和目标发送功能。DNS 查询采用非阻塞模式，通过状态回调与缓存命中快速返回，最终提供一个统一的阻塞式地址解析接口。
+
+\paragraph{性能与稳定性对比} 
+在标准测试环境下使用 Apache Benchmark 工具对 HTTP 服务并发访问进行测试，结果如下：
+
+\begin{table}
+  \centering
+  \caption{smoltcp 与 lwIP 在 HTTP 测试下的请求处理性能（单位：RPS）}
+  \begin{tabular}{ccc}
+  \toprule
+  并发数 & smoltcp & lwIP \\
+  \midrule
+  1  & 7123 & 7726 \\
+  2  & 7444 & 8698 \\
+  5  & 7747 & 8752 \\
+  10 & 7820 & 8737 \\
+  50 & 7406 & 8704 \\
+  100& 7480 & 8764 \\
+  \bottomrule
+  \end{tabular}
+\end{table}
+
+由上可见，在多种并发情况下，lwIP 性能均优于 smoltcp，尤其在高并发下保持更强稳定性，且请求失败率更低，不易卡顿。
+
+\paragraph{优化措施} 
+为进一步提高 lwIP 性能，系统引入以下优化：
+\begin{itemize}
+  \item \textbf{收包零拷贝}：利用 \texttt{pbuf\_custom} 配合自定义析构函数，实现驱动层内存复用，避免重复拷贝。
+  \item \textbf{内存池优化}：对 TCP 连接、数据结构、队列等进行预分配或内存池管理，显著降低堆分配频率。
+  \item \textbf{参数调优}：调整 \texttt{TCP\_MSS}、\texttt{TCP\_WND}、\texttt{MEMP\_NUM\_TCP\_PCB} 等参数，提升窗口大小和连接并发能力。
+  \item \textbf{任务处理机制}：基于裸机模式实现的轮询与超时检测逻辑结合 \texttt{lwip\_loop\_once} 调度函数，增强协议栈响应性。
+\end{itemize}
+
+\section{lwIP 与 smoltcp 的实现机制与代码分析}
+
+\subsection{TCP Socket 实现机制对比}
+
+\textbf{1. 连接与状态管理机制}
+
+lwIP 和 smoltcp 在 TCP 状态机处理方面有本质区别：lwIP 主要通过 \\C 语言的全局状态变量与回调注册处理连接建立和数据传输；smoltcp 则采用 Rust 的状态封装与安全抽象，通过状态枚举 \texttt{State::SynSent}, \texttt{State::Established} 等来判定连接状态。其连接建立过程使用接口：
+
+\begin{itemize}
+  \item lwIP: \texttt{tcp\_connect(pcb, ip, port, connect\_callback)} 注册回调，在异步事件中设定状态；
+  \item smoltcp: 直接使用 \texttt{socket.connect()} 发起连接，并封装连接检查逻辑于 \texttt{poll()} 中。
+\end{itemize}
+
+\textbf{2. 非阻塞与线程模型支持}
+
+smoltcp 提供 \texttt{nonblock} 原子布尔量，通过 \texttt{block\_on()} 包装轮询逻辑实现非阻塞 I/O。而 lwIP 则通过 \texttt{NO\_SYS=1} 模式实现轮询机制，并手动管理等待队列。
+
+代码中，smoltcp 通过 \texttt{TcpSocket::poll()} 实现如下轮询：
+
+\begin{listing}[!ht]
+  \captionsetup{name=代码}
+  \begin{minted}{rust}
+  match socket.state() {
+      State::SynSent => false, // 等待服务器回应
+      State::Established => true, // 已连接
+      _ => false,
+  }
+  \end{minted}
+  \caption{smoltcp TCP 状态轮询示例}
+  \label{lst:TCPSample}
+\end{listing}
+
+而 lwIP 中通过定期调用 \texttt{lwip\_loop\_once()} 推进协议状态。
+
+\subsection{TCP 数据收发与缓冲管理}
+
+\textbf{1. 数据接收缓冲}
+
+在数据接收方面：
+\begin{itemize}
+  \item smoltcp 使用 \texttt{recv\_slice()} 直接读取内部环形缓冲区，结合 \texttt{may\_recv()} 控制连接关闭状态；
+  \item lwIP 接收数据使用 \texttt{recv\_callback} 存入 \texttt{recv\_queue}，以 \texttt{pbuf} 结构形式保存，每次拷贝需计算偏移量。
+\end{itemize}
+
+如下是 lwIP 的数据读取逻辑：
+
+\begin{listing}[!ht]
+  \captionsetup{name=代码}
+  \begin{minted}{rust}
+  let (p, offset) = recv_queue.pop_front().unwrap();
+  let copy_len = min(len - offset, buf.len());
+  buf[0..copy_len].copy_from_slice(&payload[offset..offset + copy_len]);
+  if offset + copy_len < len {
+      recv_queue.push_front((PbuffPointer(p), offset + copy_len));
+  } else {
+      pbuf_free(p);
+  }
+  \end{minted}
+  \caption{lwIP TCP pbuf 数据读取片段}
+  \label{lst:lwIPPbuf}
+\end{listing}
+
+\textbf{2. 数据发送路径}
+
+两者在发送逻辑上也存在差异：
+\begin{itemize}
+  \item lwIP 调用 \texttt{tcp\_write()} + \texttt{tcp\_output()}，要求手动控制缓冲区使用与传输输出；
+  \item smoltcp 采用 \texttt{send\_slice()} 接口，由内部机制控制发送窗口与 ACK 协议。
+\end{itemize}
+
+\subsection{UDP 实现策略对比}
+
+UDP 协议在 smoltcp 中作为轻量模块实现，封装了基本的 \texttt{send\_to} 与 \texttt{recv\_from} 接口，支持连接式与无连接式使用。smoltcp 使用 Rust 中的 \texttt{RwLock<Option<Endpoint>>} 封装本地和远程地址。
+
+lwIP 则通过注册 \texttt{udp\_recv} 回调，将数据以 \texttt{pbuf} 加入队列，类似 TCP 接收机制。
+
+\subsection{设备接口封装与拓展性分析}
+
+\textbf{1. smoltcp 的 Device Trait}
+
+smoltcp 通过 \texttt{Device} trait 设计接口，要求实现 \texttt{receive()}, \texttt{transmit()}, \texttt{capabilities()} 三个方法。例如 loopback 接口如下：
+
+\begin{listing}[!ht]
+  \captionsetup{name=代码}
+  \begin{minted}{rust}
+  impl Device for LoopbackDev {
+      fn receive(...) -> Option<(RxToken, TxToken)> {
+          self.queue.pop_front().map(...)
+      }
+      fn transmit(...) -> Option<TxToken> { ... }
+      fn capabilities(...) -> DeviceCapabilities { ... }
+  }
+  \end{minted}
+  \caption{smoltcp Loopback 接口结构体实现摘要}
+  \label{lst:LoopbackImpl}
+\end{listing}
+
+\textbf{2. lwIP 的回调与全局状态模型}
+
+lwIP 所有设备行为（收包、发包）都基于驱动调用 pbuf 提交与调用者调度进行，不支持多实例或 trait 抽象，扩展性受限。
+
+\subsection{lwIP 的内存结构与 pbuf 管理机制}
+在 lwIP 中，\texttt{pbuf}（protocol buffer）是网络数据在协议栈中传输的基本结构，起到缓存和抽象封装数据包的作用。pbuf 支持链式组织，以应对碎片化或 MTU 分段等情况。
+
+pbuf 提供如下几种类型：
+\begin{itemize}
+  \item \textbf{PBUF\_RAM}：在 RAM 中分配的可修改数据块，常用于上层应用构造发出数据；
+  \item \textbf{PBUF\_POOL}：来自内存池的 pbuf，适合频繁分配释放的数据包；
+  \item \textbf{PBUF\_REF}：仅保存对现有数据的引用，避免内存拷贝；
+  \item \textbf{PBUF\_ROM}：用于只读数据（如静态响应内容），仅做引用，不拷贝数据。
+\end{itemize}
+
+在 ArceOS 中，pbuf 管理机制通过零拷贝优化得以强化。驱动层接收到网卡数据后，可直接封装为 \texttt{pbuf\_custom}，绑定自定义释放函数，从而将原始数据直接传入协议栈，无需额外拷贝。如下所示：
+
+\begin{listing}[!ht]
+  \captionsetup{name=代码}
+  \begin{minted}{c}
+  struct pbuf_custom_custom *pc = alloc_custom_pbuf(buffer, len);
+  pc->pbuf.custom_free_function = my_pbuf_free;
+  pbuf_chain(p, &pc->pbuf);
+  \end{minted}
+  \caption{pbuf\_custom 零拷贝封装示例}
+  \label{lst:ZeroCopyPbuf}
+\end{listing}
+
+该机制配合预分配的 pbuf 池和页对齐分配策略，显著降低内存开销并提升收包性能。
+
+\subsection{lwIP 回调机制与事件驱动流程}
+与传统的阻塞 IO 不同，lwIP 在裸机或 NO\_SYS 模式下采用事件驱动模型。其核心机制为对每个 TCP 或 UDP socket 注册回调函数，如 \texttt{tcp\_recv}、\texttt{tcp\_accept} 等。
+
+以下展示了 TCP 收包回调函数在 ArceOS 中的注册与触发：
+
+\begin{listing}[!ht]
+  \captionsetup{name=代码}
+  \begin{minted}{rust}
+  tcp_recv(pcb, Some(recv_callback));
+  
+  extern "C" fn recv_callback(arg: *mut c_void, pcb: *mut tcp_pcb, p: *mut pbuf, err: err_t) -> err_t {
+      if !p.is_null() {
+          let socket_inner = unsafe { &mut *(arg as *mut TcpSocketInner) };
+          socket_inner.recv_queue.lock().push_back((PbuffPointer(p), 0));
+      }
+      0
+  }
+  \end{minted}
+  \caption{lwIP TCP 收包回调流程}
+  \label{lst:LwipRecvCallback}
+\end{listing}
+
+该机制通过预注册的函数实现从驱动中断到用户态事件的快速传递，结合 ArceOS 中断轮询框架，在极简系统中亦能维持 TCP 全功能通信。
+
+\subsection{smoltcp 的 poll 模型与异步适配机制}
+smoltcp 的核心为轮询驱动的非阻塞模型。应用需显式调用 \texttt{poll()} 接口进行状态更新与数据交互。在 ArceOS 中，系统通过异步任务调度框架（如 \texttt{axtask::yield\_now}）配合轮询操作实现伪阻塞行为：
+
+\begin{listing}[!ht]
+  \captionsetup{name=代码}
+  \begin{minted}{rust}
+  loop {
+      SOCKET_SET.poll_interfaces();
+      match socket.recv(buf) {
+          Ok(len) => return Ok(len),
+          Err(AxError::WouldBlock) => yield_now(),
+          Err(e) => return Err(e),
+      }
+  }
+  \end{minted}
+  \caption{smoltcp 异步 poll 示例}
+  \label{lst:SmoltcpPoll}
+\end{listing}
+
+此外，smoltcp 支持 \texttt{poll\_connect}、\texttt{poll\_stream} 等状态函数，结合内部状态机对连接状态进行精细化管理，如 TCP 状态迁移、握手确认、接收窗口管理等。
+
+这种设计高度契合 Rust 的异步风格，可进一步封装为 \texttt{Future} 以支持 \texttt{async/await} 语法，提升代码清晰度与并发度。
+
+\textbf{代码实现总结与优化建议} \par
+
+从代码实现层面可以得出如下结论：
+
+\begin{itemize}
+  \item smoltcp 在架构上更适合安全抽象和多任务调度；lwIP 则更灵活但对状态一致性管理要求高；
+  \item UDP 的收发处理在 smoltcp 中更简洁，但 lwIP 更具扩展性和调试性；
+  \item 对于实时或高可靠通信，lwIP 通过强管控缓冲策略提供更稳定性能；
+  \item 建议使用 \texttt{SocketInner} 枚举封装两种协议栈，并通过统一 trait 抽象提升系统适配性。
+\end{itemize}
+
+下面将进一步分析这两种协议栈在 ArceOS 中如何通过 axnet 模块实现统一集成与适配。
+
+\section{ArceOS 中的协议栈集成与适配实现}
+
+\textbf{统一抽象层设计：axnet 接口} \par
+为实现 lwIP 与 smoltcp 的并行使用，ArceOS 定义了一层抽象接口 axnet，封装所有网络设备、地址类型、数据包缓冲区与协议栈交互逻辑。其目标是：
+\begin{itemize}
+  \item 上层调用透明：应用层不感知底层协议栈实现；
+  \item 动态切换协议栈：通过配置切换默认网络协议栈；
+  \item 支持多实例：为多租户系统支持多个网络堆栈实例。
+\end{itemize}
+
+\textbf{lwIP 的封装适配要点} \par
+\begin{itemize}
+  \item 提供 socket 接口适配：将 lwIP 的 netconn/socket API 封装为 Rust trait 接口；
+  \item 实现非阻塞接口：通过 select/poll 实现 pseudo async 支持；
+  \item 启用 IPv6、DHCP、DNS、ICMPv6 模块；
+  \item 使用独立线程轮询 lwIP 时间器（NO\_SYS=1 模式）。
+\end{itemize}
+
+\textbf{smoltcp 的集成要点} \par
+\begin{itemize}
+  \item 通过 trait \texttt{Device} 抽象 ArceOS 网络设备结构体；
+  \item 将 socket 数据结构 statically 注册于 Interface；
+  \item 使用 \texttt{phy::RawSocket} 模拟真实网卡接口；
+  \item 调用 \texttt{poll()} 方法驱动状态机。
+\end{itemize}
+
+由于 lwIP 是一款应用广泛的轻量级 TCP/IP 协议栈，拥有完整的 TCP、UDP、ICMP、ARP 等协议支持，适用于嵌入式和资源受限环境。其设计关注内存效率和可扩展性，是多数微型操作系统默认选项。
+
+在 ArceOS 中，我们对 lwIP 进行了如下集成和优化：
+\begin{itemize}
+    \item \textbf{API 封装与接口统一}：将 lwIP 的 socket 接口封装在统一的 Rust 接口之下，对外暴露标准的 POSIX 风格操作，使上层无需感知底层实现差异；
+    \item \textbf{协议栈模块优化}：对 lwIP 的内存分配策略进行分析，优先使用内存池进行缓冲区分配；收包采用 pbuf 引用零拷贝机制，减少内存拷贝；
+    \item \textbf{裸机移植支持}：开启 \texttt{NO\_SYS} 模式，在无 RTOS 情况下通过主循环调度 lwIP 定时器，兼容 ArceOS 的无线程模型；
+    \item \textbf{IPv6 与 DNS 支持}：通过配置 \texttt{lwipopts.h} 开启 IPv6 栈及 DNS 客户端功能，满足现代网络栈对多协议支持的需求；
+    \item \textbf{调优配置参数}：对 TCP 窗口大小、最大报文段 MSS、连接池数量等参数进行调优，提升高并发环境下协议栈性能。
+\end{itemize}
+
+性能测试表明，在 Apache Benchmark 压力下，lwIP 相较 smoltcp 拥有更高的并发处理能力，在 100 并发连接下 RPS 提升达 \textasciitilde12\%。
+
+由于 smoltcp 是专为嵌入式系统和 IoT 场景设计的轻量协议栈。其代码简洁、内存需求极低，且以无阻塞 API 实现，便于异步任务模型下的使用。
+
+在 ArceOS 的适配过程中，我们主要完成以下工作：
+\begin{itemize}
+    \item \textbf{设备抽象与适配}：通过 \texttt{DeviceWrapper} 实现对底层驱动的封装，并在 smoltcp 中实现相应的 \texttt{phy::Device} 接口；
+    \item \textbf{协议裁剪机制}：通过 Feature 控制选择启用 TCP、UDP 等功能模块，按需裁剪协议栈体积；
+    \item \textbf{内存集成管理}：采用静态缓冲池与 ArceOS 的 memory pool 深度集成，提高内存复用效率；
+    \item \textbf{异步轮询接口}：提供 \texttt{poll()} 接口驱动数据包收发，适配 ArceOS 的异步调度机制。
+\end{itemize}
+
+在资源紧张或对延迟敏感的场景中，如 IoT 终端或边缘节点，smoltcp 的部署效果更加稳定高效。
+
+\textbf{多协议栈并列设计优势分析} \par
+将 lwIP 和 smoltcp 作为可选协议栈集成至 axnet 框架具有以下优势：
+\begin{itemize}
+    \item \textbf{运行时灵活切换}：系统在初始化阶段可根据用户配置或应用类型选择默认协议栈，灵活应对多样化部署场景；
+    \item \textbf{面向场景适配}：高负载服务器推荐使用 lwIP 以获得高吞吐量；而 IoT 等轻量场景可启用 smoltcp 降低资源占用；
+    \item \textbf{简化上层开发}：对上层统一暴露标准 API，协议栈变更对应用层透明，降低移植成本；
+    \item \textbf{提升可测试性与健壮性}：协议栈间可对比测试验证行为一致性，提升系统整体稳定性。
+\end{itemize}
+
+\section{统一网络系统调用接口设计}
+为实现协议栈无关的套接字操作，系统定义了统一的 syscall 接口，并通过 \texttt{SocketInner} 枚举持有协议栈具体实现。
+
+\textbf{系统调用接口及功能描述} \par
+系统通过 syscall ID 分发实现以下主要网络操作：
+\begin{multicols}{2}
+\begin{itemize}
+    \item \texttt{SOCKET}
+    \item \texttt{SOCKETPAIR}
+    \item \texttt{BIND}
+    \item \texttt{LISTEN}
+    \item \texttt{ACCEPT}, \texttt{ACCEPT4}
+    \item \texttt{CONNECT}
+    \item \texttt{SENDTO}, \texttt{SENDMSG}, \texttt{SENDMMSG}
+    \item \texttt{RECVFROM}
+    \item \texttt{GETSOCKNAME}, \texttt{GETPEERNAME}
+    \item \texttt{SETSOCKOPT}, \texttt{GETSOCKOPT}
+    \item \texttt{SHUTDOWN}
+\end{itemize}
+\end{multicols}
+
+\begin{listing}[!ht]
+  \captionsetup{name=代码}
+  \begin{minted}{rust}
+  pub enum SocketInner {
+      Lwip(LwipSocket),
+      Smoltcp(SmoltcpSocket),
+  }
+  \end{minted}
+  \caption{SocketInner 枚举封装协议栈实现}
+  \label{lst:SocketInnerEnum}
+\end{listing}
+
+系统每次调用 \texttt{syscall()} 通过 match 分发到具体实现，隐藏协议栈底层细节。
+
+\textbf{线程安全与条件编译机制} \par
+为了支持 SMP 架构与多核并发访问，所有 socket 操作均封装在互斥锁 \texttt{Mutex} 内部，通过 Rust 安全抽象保证线程安全。协议栈选择通过 Cargo feature 标志实现裁剪与构建：
+
+\begin{listing}[!ht]
+  \captionsetup{name=代码}
+  \begin{minted}{toml}
+  [features]
+  use-lwip = []
+  use-smoltcp = []
+  \end{minted}
+  \caption{Cargo.toml 中的 feature 定义}
+  \label{lst:CargoFeatures}
+\end{listing}
+
+\textbf{系统的可扩展性与未来支持} \par
+该框架的设计支持未来拓展其他网络协议栈，如 nanonet、uIP 或 Rust-native 实现，支持多租户网络栈隔离、用户态网络协议实现、或高速 NIC 的零拷贝接入等。
 
 
-英文论文的数学符号使用 \TeX{} 默认的样式。
-如果有必要，也可以通过设置 \verb|math-style| 选择数学符号样式。
-
-关于量和单位推荐使用
-\href{http://mirrors.ctan.org/macros/latex/contrib/siunitx/siunitx.pdf}{\pkg{siunitx}}
-宏包，
-可以方便地处理希腊字母以及数字与单位之间的空白，
-比如：
-\SI{6.4e6}{m}，
-\SI{9}{\micro\meter}，
-\si{kg.m.s^{-1}}，
-\SIrange{10}{20}{\degreeCelsius}。
-
-
-
-\section{数学公式}
-
-数学公式可以使用 \env{equation} 和 \env{equation*} 环境。
-注意数学公式的引用应前后带括号，通常使用 \cs{eqref} 命令，比如式\eqref{eq:example}。
-\begin{equation}
-  \frac{1}{2 \uppi \symup{i}} \int_\gamma f = \sum_{k=1}^m n(\gamma; a_k) \mathscr{R}(f; a_k).
-  \label{eq:example}
-\end{equation}
-
-多行公式尽可能在“=”处对齐，推荐使用 \env{align} 环境。
-\begin{align}
-  a & = b + c + d + e \\
-    & = f + g
-\end{align}
-
-
-
-\section{数学定理}
-
-定理环境的格式可以使用 \pkg{amsthm} 或者 \pkg{ntheorem} 宏包配置。
-用户在导言区载入这两者之一后，模板会自动配置 \env{theorem}、\env{proof} 等环境。
-
-\begin{theorem}[Lindeberg--Lévy 中心极限定理]
-  设随机变量 $X_1, X_2, \dots, X_n$ 独立同分布， 且具有期望 $\mu$ 和有限的方差 $\sigma^2 \ne 0$，
-  记 $\bar{X}_n = \frac{1}{n} \sum_{i+1}^n X_i$，则
-  \begin{equation}
-    \lim_{n \to \infty} P \left(\frac{\sqrt{n} \left( \bar{X}_n - \mu \right)}{\sigma} \le z \right) = \Phi(z),
-  \end{equation}
-  其中 $\Phi(z)$ 是标准正态分布的分布函数。
-\end{theorem}
-\begin{proof}
-  Trivial.
-\end{proof}
-
-同时模板还提供了 \env{assumption}、\env{definition}、\env{proposition}、
-\env{lemma}、\env{theorem}、\env{axiom}、\env{corollary}、\env{exercise}、
-\env{example}、\env{remar}、\env{problem}、\env{conjecture} 这些相关的环境。
